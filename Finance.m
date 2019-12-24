@@ -57,7 +57,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     
     properties (Constant)
         % Values of allowed currencies.
-        AllowedCurrencies = ["GBP", "EUR", "USD"]
+        AllowedCurrencies = ["GBP"]%, "EUR", "USD"]
         % Values of allowed recurrence.
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
     end
@@ -67,9 +67,11 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         TaxNIMatrix = getTaxNIMatrix()
     end
     
-    properties (Hidden, Dependent, SetAccess = private)
+    properties (Dependent, SetAccess = private, GetAccess = ?component.Component)
         % Combined values of tax and National Insurance as deduction table.
         TaxNITable
+        % Combined values of all deductions.
+        Deductions
     end % properties (Hidden, Dependent, SetAccess = private)
     
     events
@@ -171,6 +173,13 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             value(end+1, :) = {"National Insurance", obj.NationalInsurance, ...
                 obj.Recurrence, "GBP"};
         end % get.TaxNITable
+        
+        function value = get.Deductions(obj)
+            % Sum and combine all deductions.
+            value(1) = obj.convertFrom(obj.Recurrence, sum(obj.PreTax.Deduction));
+            value(2) = obj.convertFrom(obj.Recurrence, sum(obj.YearlyTaxNI));
+            value(3) = obj.convertFrom(obj.Recurrence, sum(obj.PostTax.Deduction));
+        end % get.Deductions
         
     end % methods
     

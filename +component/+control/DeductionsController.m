@@ -14,7 +14,7 @@ classdef DeductionsController < component.Component
         % Array of submenus.
         Menus (1, :) matlab.ui.container.Menu = matlab.ui.container.Menu.empty()
         % Dialog app to add or remove deductions.
-        Dialog window.DeductionDlg = window.DeductionDlg.empty()
+        Dialog component.window.DeductionsHandler = component.window.DeductionsHandler.empty()
         % Listener to dialog app.
         DialogListener (1, 1)
     end % properties (Access = private)
@@ -76,14 +76,28 @@ classdef DeductionsController < component.Component
             % deductions.
             
             % Call UI dialog app.
-            obj.Dialog = window.DeductionDlg("addDeduction", ...
-                obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3);
-            if isvalid(obj.Dialog)
-                obj.DialogListener = listener(obj.Dialog, "OKPushed", @obj.onAddOK);
-            end
+            obj.Dialog = component.window.DeductionsHandler( ...
+                "Mode", "add", ...
+                "Position", obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3, ...
+                "OKCallback", @obj.onAddOK);
         end % onAdd
         
-        function onAddOK(obj, ~, ~)
+        function onRemove(obj, ~, ~)
+            % ONREMOVE Internal function to remove deduction from finance
+            % model.
+            
+            % Call UI dialog app.
+            obj.Dialog = component.window.DeductionsHandler( ...
+                "Mode", "remove", ...
+                "Position", obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3, ...
+                "OKCallback", @obj.onRemoveOK);
+        end % onRemove
+        
+    end % methods (Access = private)
+    
+    methods (Access = ?component.window.DeductionsHandler)
+        
+        function onAddOK(obj, src, ~)
             % ONADDOK Internal function to add deduction to finance model.
             
             % Retrieve edit field value.
@@ -109,21 +123,12 @@ classdef DeductionsController < component.Component
                     rethrow(exception)
                 end
             end
+            
+            % Close source app.
+            src.Parent.Parent.delete();
         end % onAddOK
         
-        function onRemove(obj, ~, ~)
-            % ONREMOVE Internal function to remove deduction from finance
-            % model.
-            
-            % Call UI dialog app.
-            obj.Dialog = window.DeductionDlg("removeDeduction", ...
-                obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3);
-            if isvalid(obj.Dialog)
-                obj.DialogListener = listener(obj.Dialog, "OKPushed", @obj.onRemoveOK);
-            end
-        end % onRemove
-        
-        function onRemoveOK(obj, ~, ~)
+        function onRemoveOK(obj, src, ~)
             % ONREMOVEOK Internal function to remove deduction from finance
             % model.
             
@@ -149,8 +154,11 @@ classdef DeductionsController < component.Component
                     rethrow(exception)
                 end
             end
+            
+            % Close source app.
+            src.Parent.Parent.delete();
         end % onRemoveOK
         
-    end % methods (Access = private)
+    end % methods (Access = ?component.window.DeductionsHandler)
     
 end
