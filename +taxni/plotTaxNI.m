@@ -1,7 +1,7 @@
 function plotTaxNI()
 
 % Load tax-NI info.
-load("taxNIInfo.mat", "taxNIMatrix")
+load(fullfile("..", "persistent", "taxNIInfo.mat"), "taxNIMatrix")
 
 % Create income matrix.
 income = taxNIMatrix(:, 1);

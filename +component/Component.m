@@ -11,23 +11,25 @@ classdef (Abstract, Hidden) Component < matlab.mixin.SetGetExactNames & matlab.m
     
     properties (SetAccess = immutable, GetAccess = protected)
         % Model describing the finance structure.
-        Model (1, 1)
+        Model Finance = Finance.empty()
     end % properties (SetAccess = immutable, GetAccess = protected)
     
     properties (Access = protected)
         % Main component.
         Main (1, 1)
         % Grid containing object.
-        Grid (1, 1)
+        Grid matlab.ui.container.GridLayout
     end % properties (Access = protected)
     
     methods
         
         function obj = Component(model)
             % Assign model to object.
-            assert(isa(model, "Finance"), "Component:Model:InvalidInput", ...
-                "Model must be of type Finance.")
-            obj.Model = model;
+            if nargin > 0
+                assert(isa(model, "Finance"), "Component:Model:InvalidInput", ...
+                    "Model must be of type Finance.")
+                obj.Model = model;
+            end
         end % constructor
         
         function set.Parent(obj, value)

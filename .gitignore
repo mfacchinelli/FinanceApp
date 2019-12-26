@@ -1,2 +1,6 @@
 **/*.MATLABDriveTag
+**/*.DS_Store
 **/*.m~
+**/*.mat
+**/*.prj
+IncomeFinanceApp/*

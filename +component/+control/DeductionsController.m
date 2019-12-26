@@ -1,9 +1,9 @@
 classdef DeductionsController < component.Component
     
-    properties
+    properties (Dependent)
         % String defining the name of the tracked property of the model.
-        TrackedProperty string = string.empty()
-    end % properties
+        TrackedProperty string
+    end % properties (Dependent)
     
     properties (Dependent, SetAccess = private)
         % Variable returning context menu.
@@ -17,6 +17,8 @@ classdef DeductionsController < component.Component
         Dialog component.window.DeductionsHandler = component.window.DeductionsHandler.empty()
         % Listener to dialog app.
         DialogListener (1, 1)
+        % Internal value of the tracked property of the model.
+        TrackedProperty_ string = string.empty()
     end % properties (Access = private)
     
     methods
@@ -36,10 +38,18 @@ classdef DeductionsController < component.Component
                 "MenuSelectedFcn", @obj.onAdd);
             
             % Add submenu to remove deduction.
-            obj.Menus(1) = uimenu(obj.Main, ...
-                "Text", "&Remove", ...
+            obj.Menus(2) = uimenu(obj.Main, ...
+                "Text", "Remove...");
+            
+            obj.Menus(3) = uimenu(obj.Menus(2), ...
+                "Text", "&Rows", ...
                 "Accelerator", "R", ...
-                "MenuSelectedFcn", @obj.onRemove);
+                "MenuSelectedFcn", @obj.onRemoveRows);
+            
+            obj.Menus(4) = uimenu(obj.Menus(2), ...
+                "Text", "&Everything", ...
+                "Accelerator", "E", ...
+                "MenuSelectedFcn", @obj.onRemoveEverything);
             
             % Set properties.
             set(obj, varargin{:})
@@ -48,7 +58,7 @@ classdef DeductionsController < component.Component
         function delete(obj)
             % Delete input dialog.
             if isvalid(obj.Dialog)
-                delete(obj.Dialog);
+                obj.Dialog.delete();
             end
         end % destructor
         
@@ -60,8 +70,12 @@ classdef DeductionsController < component.Component
             end
             
             % Set value.
-            obj.TrackedProperty = value;
+            obj.TrackedProperty_ = value;
         end % set.TrackedProperty
+        
+        function value = get.TrackedProperty(obj)
+            value = obj.TrackedProperty_;
+        end % get.TrackedProperty
         
         function value = get.UIContextMenu(obj)
             value = obj.Main;
@@ -75,29 +89,58 @@ classdef DeductionsController < component.Component
             % ONADD Internal function to create dialog input to add
             % deductions.
             
-            % Call UI dialog app.
-            obj.Dialog = component.window.DeductionsHandler( ...
-                "Mode", "add", ...
-                "Position", obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3, ...
-                "OKCallback", @obj.onAddOK);
+            % Check that no other window is open.
+            if isempty(obj.Dialog) || ~obj.Dialog.IsValid
+                % Call UI dialog app.
+                obj.Dialog = component.window.DeductionsHandler( ...
+                    "Mode", "add", ...
+                    "Position", obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3, ...
+                    "OKFcn", @obj.onAddOK);
+            else
+                uialert(obj.Parent, ["A window of this kind is already open. ", ...
+                    "Please finish the previous operation before starting a new one."], ...
+                    sprintf("%s Input Dialog Already Open", obj.TrackedProperty_), ...
+                    "Icon", "warning");
+            end
         end % onAdd
         
-        function onRemove(obj, ~, ~)
-            % ONREMOVE Internal function to remove deduction from finance
-            % model.
+        function onRemoveRows(obj, ~, ~)
+            % ONREMOVEROWS Internal function to remove specific deductions
+            % from finance model.
             
-            % Call UI dialog app.
-            obj.Dialog = component.window.DeductionsHandler( ...
-                "Mode", "remove", ...
-                "Position", obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3, ...
-                "OKCallback", @obj.onRemoveOK);
-        end % onRemove
+            % Check that no other window is open.
+            if isempty(obj.Dialog) || ~obj.Dialog.IsValid
+                % Call UI dialog app.
+                obj.Dialog = component.window.DeductionsHandler( ...
+                    "Mode", "remove", ...
+                    "Position", obj.Parent.Position(1:2) + obj.Parent.Position(3:4) / 3, ...
+                    "OKFcn", @obj.onRemoveRowsOK);
+            else
+                uialert(obj.Parent, ["A window of this kind is already open. ", ...
+                    "Please finish the previous operation before starting a new one."], ...
+                    "Input Dialog Already Open", ...
+                    "Icon", "warning");
+            end
+        end % onRemoveRows
+        
+        function onRemoveEverything(obj, ~, ~)
+            % ONREMOVEEVERYTHING Internal function to remove all deduction
+            % from finance model.
+            
+            % Remove all deductions.
+            uiconfirm(obj.Parent, ...
+                "Do you wish to remove all deductions? This cannot be undone.", ...
+                sprintf("Remove All %s Deductions", obj.TrackedProperty_), ...
+                "Options", ["OK", "Cancel"], ...
+                "Icon", "Warning", ...
+                "CloseFcn", @obj.onRemoveEverythingOK);
+        end % onRemoveEverything
         
     end % methods (Access = private)
     
     methods (Access = ?component.window.DeductionsHandler)
         
-        function onAddOK(obj, src, ~)
+        function onAddOK(obj, ~, ~)
             % ONADDOK Internal function to add deduction to finance model.
             
             % Retrieve edit field value.
@@ -114,23 +157,21 @@ classdef DeductionsController < component.Component
             
             % Pass information to model for further processing.
             try
-                eval(sprintf("obj.Model.add%sDeduction(splitvalue{:})", obj.TrackedProperty))
+                eval(sprintf("obj.Model.add%sDeduction(splitvalue{:});", obj.TrackedProperty_))
             catch exception
                 if strcmp(exception.identifier, "MATLAB:noSuchMethodOrField")
                     error("DeductionsController:Add:InvalidProperty", ...
                         "Selected property does not have an add method.")
                 else
-                    rethrow(exception)
+                    uialert(obj.Parent, exception.message, ...
+                        sprintf("Caught Exception - %s", exception.identifier));
                 end
             end
-            
-            % Close source app.
-            src.Parent.Parent.delete();
         end % onAddOK
         
-        function onRemoveOK(obj, src, ~)
-            % ONREMOVEOK Internal function to remove deduction from finance
-            % model.
+        function onRemoveRowsOK(obj, ~, ~)
+            % ONREMOVEROWSOK Internal function to remove deduction from
+            % finance model.
             
             % Retrieve edit field value.
             value = obj.Dialog.EditFieldValue;
@@ -145,19 +186,35 @@ classdef DeductionsController < component.Component
             
             % Pass information to model for further processing.
             try
-                eval(sprintf("obj.Model.remove%sDeduction(splitvalue)", obj.TrackedProperty))
+                eval(sprintf("obj.Model.remove%sDeduction(splitvalue);", obj.TrackedProperty_))
             catch exception
                 if strcmp(exception.identifier, "MATLAB:noSuchMethodOrField")
                     error("DeductionsController:Remove:InvalidProperty", ...
                         "Selected property does not have a remove method.")
                 else
-                    rethrow(exception)
+                    uialert(obj.Parent, exception.message, ...
+                        sprintf("Caught Exception - %s", exception.identifier));
                 end
             end
+        end % onRemoveRowsOK
+        
+        function onRemoveEverythingOK(obj, ~, ~)
+            % ONREMOVEEVERYTHINGOK Internal function to remove all
+            % deductions from finance model.
             
-            % Close source app.
-            src.Parent.Parent.delete();
-        end % onRemoveOK
+            % Pass information to model for further processing.
+            try
+                eval(sprintf("obj.Model.delete%sDeductions();", obj.TrackedProperty_))
+            catch exception
+                if strcmp(exception.identifier, "MATLAB:noSuchMethodOrField")
+                    error("DeductionsController:Remove:InvalidProperty", ...
+                        "Selected property does not have a remove method.")
+                else
+                    uialert(obj.Parent, exception.message, ...
+                        sprintf("Caught Exception - %s", exception.identifier));
+                end
+            end
+        end % onRemoveEverythingOK
         
     end % methods (Access = ?component.window.DeductionsHandler)
     

@@ -4,7 +4,7 @@ classdef (Sealed, Hidden) Null < component.Component
         
         function obj = Null()
             % Set properties to empty.
-            obj@component.Component(Finance)
+            obj@component.Component()
         end
         
     end % methods

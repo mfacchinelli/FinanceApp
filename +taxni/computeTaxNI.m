@@ -9,7 +9,7 @@ income = [0, 12500, 50000, 150000, 200000];
 taxNIMatrix = taxni.downloadTaxNI(APIKey, income);
 
 % Save matrix to MAT file.
-save(fullfile("+taxni", "taxNIInfo"), "taxNIMatrix")
+save(fullfile("..", "persistent", "taxNIInfo.mat"), "taxNIMatrix")
 
 % Plot tax-NI info.
 taxni.plotTaxNI()

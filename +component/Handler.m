@@ -1,26 +1,54 @@
-classdef (Abstract) Handler < matlab.mixin.SetGetExactNames
+classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
+    
+    properties (Dependent, SetAccess = private)
+        % Logical denoting whether the window is valid.
+        IsValid
+    end
+    
+    properties (Dependent, GetAccess = private)
+        % Array specifying figure position.
+        Position (1, 2) double {mustBeNonnegative}
+    end % properties (Dependent, GetAccess = private)
     
     properties (Access = protected)
         % UI figure for obj.
-        UIFigure matlab.ui.Figure
+        Parent matlab.ui.Figure
         % Grid layout for obj.
-        GridLayout matlab.ui.container.GridLayout
-    end % properties (Access = private)
+        Grid matlab.ui.container.GridLayout
+    end % properties (Access = protected)
+    
+    methods
+        
+        function delete(obj)
+            % Close figure to delete all children.
+            obj.Parent.delete();
+        end % destructor
+        
+        function value = get.IsValid(obj)
+            value = isvalid(obj) && isgraphics(obj.Parent);
+        end % set.IsValid
+        
+        function set.Position(obj, value)
+            obj.Parent.Position = [value, 315, 120];
+        end % set.Position
+        
+    end % methods
     
     methods (Access = protected)
         
-        function createComponents(obj)
-            % CREATECOMPONENTS Internal function to create UIFigure for obj
-            % and its components - text box and edit field - based on the
-            % input text strings.
+        function createBasicComponents(obj)
+            % CREATEBASICCOMPONENTS Internal function to create main
+            % figure.
             
-            % Create UIFigure and hide until all components are created.
-            obj.UIFigure = uifigure("Visible", "off", "HandleVisibility", "off");
+            % Create figure.
+            obj.Parent = uifigure( ...
+                "HandleVisibility", "off", ...
+                "Resize", "off");
             
-            % Create GridLayout.
-            obj.GridLayout = uigridlayout(obj.UIFigure);
-        end
+            % Create Grid.
+            obj.Grid = uigridlayout(obj.Parent);
+        end % createComponents
         
-    end % methods (Sealed, Access = protected)
+    end % methods (Access = protected)
     
 end

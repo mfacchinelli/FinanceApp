@@ -48,12 +48,28 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         MaxIncome
     end
     
+    properties
+        % Number of work days per week.
+        WeeklyWorkDays (1, 1) double {mustBePositive, mustBeInteger, ...
+            mustBeLessThanOrEqual(WeeklyWorkDays, 7)} = 5
+        % Number of work hours per day.
+        DailyWorkHours (1, 1) double {mustBePositive, ...
+            mustBeLessThanOrEqual(DailyWorkHours, 24)} = 7.5
+    end
+    
     properties (SetAccess = immutable, GetAccess = private)
         % Value of minimum yearly income of tabulated data.
         MinYearlyIncome
         % Value of maximum yearly income of tabulated data.
         MaxYearlyIncome
     end
+    
+    properties (Dependent, SetAccess = private, GetAccess = ?component.Component)
+        % Combined values of tax and National Insurance as deduction table.
+        TaxNITable
+        % Combined values of all deductions.
+        Deductions
+    end % properties (Hidden, Dependent, SetAccess = private)
     
     properties (Constant)
         % Values of allowed currencies.
@@ -63,16 +79,11 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     end
     
     properties (Constant, Access = private)
+        % Name of MAT file where current session is saved.
+        Session = getSessionFile()
         % UK tax and National Insurance matrix as a function of gross income.
         TaxNIMatrix = getTaxNIMatrix()
     end
-    
-    properties (Dependent, SetAccess = private, GetAccess = ?component.Component)
-        % Combined values of tax and National Insurance as deduction table.
-        TaxNITable
-        % Combined values of all deductions.
-        Deductions
-    end % properties (Hidden, Dependent, SetAccess = private)
     
     events
         % Event notifying update of finance model.
@@ -86,12 +97,20 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
             obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
             
+            % Load previous session.
+            obj.load();
+            
             % Set data.
             set(obj, varargin{:})
             
             % Update finances.
             obj.update();
         end % constructor
+        
+        function delete(obj)
+            % Save current session.
+            obj.save();
+        end % destructor
         
         function set.GrossIncome(obj, value)
             % Convert value to yearly recurrence.
@@ -176,9 +195,13 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
         function value = get.Deductions(obj)
             % Sum and combine all deductions.
-            value(1) = obj.convertFrom(obj.Recurrence, sum(obj.PreTax.Deduction));
+            value(1) = obj.convertFrom(obj.Recurrence, ...
+                sum(arrayfun(@(i) obj.convertTo(obj.PreTax.Recurrence(i), obj.PreTax.Deduction(i)), ...
+                1:size(obj.PreTax, 1))));
             value(2) = obj.convertFrom(obj.Recurrence, sum(obj.YearlyTaxNI));
-            value(3) = obj.convertFrom(obj.Recurrence, sum(obj.PostTax.Deduction));
+            value(3) = obj.convertFrom(obj.Recurrence, ...
+                sum(arrayfun(@(i) obj.convertTo(obj.PostTax.Recurrence(i), obj.PostTax.Deduction(i)), ...
+                1:size(obj.PostTax, 1))));
         end % get.Deductions
         
     end % methods
@@ -245,8 +268,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             narginchk(2, 2)
             assert(isnumeric(rowNumbers), "Finance:PreTax:InvalidRow", "Row values must be numeric.")
             assert(all(rowNumbers > 0), "Finance:PreTax:InvalidRow", "Row number must be positive.")
-            assert(all(rowNumbers <= size(obj.PreTax, 1)), ...
-                "Finance:PreTax:InvalidRow", "Row specified does not exist.")
+            assert(all(rowNumbers <= size(obj.PreTax, 1)), "Finance:PreTax:InvalidRow", ...
+                "Row specified does not exist. Maximum value is %d.", size(obj.PreTax, 1))
             
             % Remove data from pre-tax table.
             obj.PreTax(rowNumbers, :) = [];
@@ -264,8 +287,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             narginchk(2, 2)
             assert(isnumeric(rowNumbers), "Finance:PostTax:InvalidRow", "Row values must be numeric.")
             assert(all(rowNumbers > 0), "Finance:PostTax:InvalidRow", "Row number must be positive.")
-            assert(all(rowNumbers <= size(obj.PostTax, 1)), ...
-                "Finance:PostTax:InvalidRow", "Row specified does not exist.")
+            assert(all(rowNumbers <= size(obj.PostTax, 1)), "Finance:PostTax:InvalidRow", ...
+                "Row specified does not exist. Maximum value is %d.", size(obj.PostTax, 1))
             
             % Remove data from post-tax table.
             obj.PostTax(rowNumbers, :) = [];
@@ -274,9 +297,67 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.update();
         end % removePostTaxDeduction
         
+        function deletePreTaxDeductions(obj)
+            % DELETEPRETAXDEDUCTIONS Delete all pre-tax voluntary
+            % deductions.
+            
+            % Empty table of pre-tax deductions.
+            obj.PreTax = getEmptyDeductionTable();
+            
+            % Update finances.
+            obj.update();
+        end % deletePreTaxDeductions
+        
+        function deletePostTaxDeductions(obj)
+            % DELETEPOSTTAXDEDUCTIONS Delete all post-tax voluntary
+            % deductions.
+            
+            % Empty table of post-tax deductions.
+            obj.PostTax = getEmptyDeductionTable();
+            
+            % Update finances.
+            obj.update();
+        end % deletePostTaxDeductions
+        
     end % methods (Access = public)
     
     methods (Access = private)
+        
+        function load(obj)
+            % LOAD Internal function to load previous session of app. The
+            % app loads a MAT file containing the gross income value and
+            % the voluntary pre-tax and post-tax deductions.
+            
+            % Check that MAT file exists.
+            if exist(obj.Session, "file")
+                % Load MAT file.
+                load(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions");
+                
+                % Store values.
+                obj.YearlyGrossIncome = grossIncome;
+                obj.PreTax = preTaxDeductions;
+                obj.PostTax = postTaxDeductions;
+            end
+        end % load
+        
+        function save(obj)
+            % SAVE Internal function to save current session of app. The
+            % app saves a MAT file containing the gross income value and
+            % the voluntary pre-tax and post-tax deductions.
+            
+            % Check that persistent folder exists.
+            if ~exist(fileparts(obj.Session), "dir")
+                mkdir(fileparts(obj.Session))
+            end
+            
+            % Retrieve values.
+            grossIncome = obj.YearlyGrossIncome;
+            preTaxDeductions = obj.PreTax;
+            postTaxDeductions = obj.PostTax;
+            
+            % Save MAT file.
+            save(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions");
+        end % save
         
         function update(obj)
             % UPDATE Internal function to update values of income based
@@ -337,27 +418,23 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             end
         end % deductPostTax
         
-    end % methods (Access = private)
-    
-    methods (Static, Access = private)
-        
-        function value = convertTo(recurrence, value)
-            % CONVERTTOYEARLY Internal function to convert value from
-            % speficied recurrence to yearly recurrence.
+        function value = convertTo(obj, recurrence, value)
+            % CONVERTTOYEARLY Internal function to convert value to yearly
+            % recurrence from speficied recurrence.
             
             % Convert to yearly value based on time recurrence.
-            value = Finance.convertRecurrence(@times, recurrence, value);
+            value = obj.convertRecurrence(@times, recurrence, value);
         end % convertTo
         
-        function value = convertFrom(recurrence, value)
+        function value = convertFrom(obj, recurrence, value)
             % CONVERTFROMYEARLY Internal function to convert value from
             % yearly recurrence to speficied recurrence.
             
             % Convert from yearly value based on time recurrence.
-            value = Finance.convertRecurrence(@rdivide, recurrence, value);
+            value = obj.convertRecurrence(@rdivide, recurrence, value);
         end % convertFrom
         
-        function value = convertRecurrence(operator, recurrence, value)
+        function value = convertRecurrence(obj, operator, recurrence, value)
             % CONVERTRECURRENCE Convert recurrence with respect to yearly,
             % based on input operator.
             
@@ -370,16 +447,16 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
                 case "Weekly"
                     value = operator(value, 12 * 4);
                 case "Daily"
-                    value = operator(value, 12 * 4 * 5);
+                    value = operator(value, 12 * 4 * obj.WeeklyWorkDays);
                 case "Hourly"
-                    value = operator(value, 12 * 4 * 5 * 7.5);
+                    value = operator(value, 12 * 4 * obj.WeeklyWorkDays * obj.DailyWorkHours);
                 otherwise
                     error("Finance:Recurrence:UnknownInput", ...
                         "Recurrence '%s' is unknown and unsupported.", recurrence)
             end
         end % convertRecurrence
         
-    end % methods (Static, Access = private)
+    end % methods (Access = private)
     
 end
 
@@ -418,11 +495,29 @@ t.Recurrence = setcats(t.Recurrence, Finance.AllowedRecurrence);
 
 end % getEmptyDeductionTable
 
+function sessionFile = getSessionFile()
+% GETSESSIONFILE Function to return the name of the file to load previous
+% session and store current one.
+
+% Hard-code file based on execution.
+if isdeployed
+    sessionFile = which("deductions.mat");
+else
+    sessionFile = fullfile("persistent", "deductions.mat");
+end
+
+end
+
 function taxNIMatrix = getTaxNIMatrix()
 % GETTAXNIMATRIX Function to return the tax-NI matrix downloaded using
 % income-tax.co.uk APIs.
 
 % Get tax-NI information.
-load(fullfile("+taxni", "taxNIInfo"), "taxNIMatrix")
+if isdeployed
+    taxNIFile = which("taxNIInfo.mat");
+else
+    taxNIFile = fullfile("persistent", "taxNIInfo.mat");
+end
+load(taxNIFile, "taxNIMatrix")
 
 end % getTaxBrackets
