@@ -1,6 +1,8 @@
+IncomeFinanceApp/*
+IncomeFinanceApp_resources/*
 **/*.MATLABDriveTag
 **/*.DS_Store
 **/*.m~
 **/*.mat
 **/*.prj
-IncomeFinanceApp/*
+**/*.png

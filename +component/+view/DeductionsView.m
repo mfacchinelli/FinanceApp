@@ -83,14 +83,9 @@ function t = getEmptyDeductionTable()
 % be used as visualization purposes.
 
 % Create empty table with deductions properties.
-t = cell2table(cell(0,4), "VariableNames", ["Name", "Deduction", "Currency", "Recurrence"]);
-
-t.Name = string.empty();
-
-t.Currency = categorical.empty();
+t = table('Size', [0, 4], 'VariableTypes', ["string", "double", "categorical", "categorical"], ...
+    'VariableNames', ["Name", "Deduction", "Currency", "Recurrence"]);
 t.Currency = setcats(t.Currency, Finance.AllowedCurrencies);
-
-t.Recurrence = categorical.empty();
 t.Recurrence = setcats(t.Recurrence, Finance.AllowedRecurrence);
 
 end % getEmptyDeductionTable

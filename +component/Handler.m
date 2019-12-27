@@ -7,7 +7,7 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
     
     properties (Dependent, GetAccess = private)
         % Array specifying figure position.
-        Position (1, 2) double {mustBeNonnegative}
+        ParentPosition (1, 4) double {mustBeNonnegative}
     end % properties (Dependent, GetAccess = private)
     
     properties (Access = protected)
@@ -28,9 +28,16 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
             value = isvalid(obj) && isgraphics(obj.Parent);
         end % set.IsValid
         
-        function set.Position(obj, value)
-            obj.Parent.Position = [value, 315, 120];
-        end % set.Position
+        function set.ParentPosition(obj, value)
+            % Define window size.
+            size = [315, 120];
+            
+            % Compute position at middle of parent.
+            position = value(1:2) + value(3:4) / 2 - size / 2;
+            
+            % Set window position.
+            obj.Parent.Position = [position, size];
+        end % set.ParentPosition
         
     end % methods
     
@@ -44,6 +51,9 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
             obj.Parent = uifigure( ...
                 "HandleVisibility", "off", ...
                 "Resize", "off");
+            
+            % Hide figure until all components are created.
+            obj.Parent.Visible = "off";
             
             % Create Grid.
             obj.Grid = uigridlayout(obj.Parent);

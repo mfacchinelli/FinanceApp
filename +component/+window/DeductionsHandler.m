@@ -18,6 +18,9 @@ classdef (Sealed, Hidden) DeductionsHandler < component.InputHandler
             
             % Set properties.
             set(obj, varargin{:})
+            
+            % Show figure after all components are created.
+            obj.Parent.Visible = "on";
         end % constructor
         
         function set.Mode(obj, value)

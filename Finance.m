@@ -1,9 +1,9 @@
 classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     
-    properties (Dependent)
+    properties (Dependent, AbortSet)
         % Value of gross (pre-tax) income in GBP.
         GrossIncome (1, 1) double
-    end % properties (Dependent)
+    end % properties (Dependent, AbortSet)
     
     properties (Dependent, SetAccess = private)
         % Value of net (post-tax) income in GBP.
@@ -12,57 +12,48 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         Tax
         % Value of National Insurance.
         NationalInsurance
+        % Value of pension.
+        Pension
     end % properties (Dependent, SetAccess = private)
     
-    properties (Dependent)
+    properties (AbortSet, SetObservable)
         % Value describing how to divide income.
-        Recurrence (1, 1) categorical {mustBeRecurrence}
+        Recurrence (1, 1) categorical {mustBeRecurrence} = "Yearly"
         % Value describing default currency.
-        Currency (1, 1) categorical {mustBeCurrency}
-    end
-    
-    properties (SetAccess = private)
-        % Table of voluntary pre-tax deductions.
-        PreTax = getEmptyDeductionTable()
-        % Table of post-tax deductions.
-        PostTax = getEmptyDeductionTable()
-    end % properties (Dependent, SetAccess = private)
-    
-    properties (Access = private)
-        % Private value of gross income.
-        YearlyGrossIncome = 100000
-        % Private value of net income.
-        YearlyNetIncome
-        % Private value of tax and National Insurance.
-        YearlyTaxNI
-        % Private value of recurrence.
-        Recurrence_ = "Yearly"
-        % Valye describing default currency.
-        Currency_ = "GBP"
-    end % properties (Access = private)
-    
-    properties (Dependent)
-        % Value of minimum income of tabulated data.
-        MinIncome
-        % Value of maximum income of tabulated data.
-        MaxIncome
-    end
-    
-    properties
+        Currency (1, 1) categorical {mustBeCurrency} = "GBP"
+        % Logical denoting whether pension has been added.
+        DeductPension (1, 1) logical = false
+        % Value of pre-tax pension contribution.
+        PensionContribution (1, 1) double {mustBeNonnegative, ...
+            mustBeLessThanOrEqual(PensionContribution, 100)} = 0
         % Number of work days per week.
         WeeklyWorkDays (1, 1) double {mustBePositive, mustBeInteger, ...
             mustBeLessThanOrEqual(WeeklyWorkDays, 7)} = 5
         % Number of work hours per day.
         DailyWorkHours (1, 1) double {mustBePositive, ...
             mustBeLessThanOrEqual(DailyWorkHours, 24)} = 7.5
-    end
+    end % properties (AbortSet, SetObservable)
+    
+    properties (SetAccess = ?component.hybrid.SettingsViewController)
+        % Table of voluntary pre-tax deductions.
+        PreTax table = getEmptyDeductionTable()
+        % Table of post-tax deductions.
+        PostTax table = getEmptyDeductionTable()
+    end % properties (SetAccess = ?component.hybrid.SettingsViewController)
+    
+    properties (Dependent, SetAccess = private)
+        % Value of minimum income of tabulated data.
+        MinIncome
+        % Value of maximum income of tabulated data.
+        MaxIncome
+    end % properties (Dependent, SetAccess = private)
     
     properties (SetAccess = immutable, GetAccess = private)
         % Value of minimum yearly income of tabulated data.
-        MinYearlyIncome
+        MinYearlyIncome double
         % Value of maximum yearly income of tabulated data.
-        MaxYearlyIncome
-    end
+        MaxYearlyIncome double
+    end % properties (SetAccess = immutable, GetAccess = private)
     
     properties (Dependent, SetAccess = private, GetAccess = ?component.Component)
         % Combined values of tax and National Insurance as deduction table.
@@ -71,19 +62,31 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         Deductions
     end % properties (Hidden, Dependent, SetAccess = private)
     
+    properties (Access = ?component.hybrid.SettingsViewController)
+        % Private value of gross income.
+        YearlyGrossIncome double = 100000
+    end % properties (Access = ?component.hybrid.SettingsViewController)
+    
+    properties (Access = private)
+        % Private value of net income.
+        YearlyNetIncome double
+        % Private value of tax and National Insurance.
+        YearlyTaxNI double
+    end % properties (Access = private)
+    
     properties (Constant)
         % Values of allowed currencies.
         AllowedCurrencies = ["GBP"]%, "EUR", "USD"]
         % Values of allowed recurrence.
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
-    end
+    end % properties (Constant)
     
     properties (Constant, Access = private)
         % Name of MAT file where current session is saved.
         Session = getSessionFile()
         % UK tax and National Insurance matrix as a function of gross income.
         TaxNIMatrix = getTaxNIMatrix()
-    end
+    end % properties (Constant, Access = private)
     
     events
         % Event notifying update of finance model.
@@ -99,6 +102,9 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             
             % Load previous session.
             obj.load();
+            
+            % Create listeners for 'SetObservable' properties.
+            obj.addSetObservableListeners();
             
             % Set data.
             set(obj, varargin{:})
@@ -150,29 +156,15 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             value = obj.convertFrom(obj.Recurrence, obj.YearlyTaxNI(2));
         end % get.NationalInsurance
         
-        function set.Recurrence(obj, value)
-            % Set value.
-            obj.Recurrence_ = value;
-            
-            % Update finances.
-            obj.update();
-        end % set.Recurrence
-        
-        function value = get.Recurrence(obj)
-            value = obj.Recurrence_;
-        end % get.Recurrence
-        
-        function set.Currency(obj, value)
-            % Set value.
-            obj.Currency_ = value;
-            
-            % Update finances.
-            obj.update();
-        end % set.Currency
-        
-        function value = get.Currency(obj)
-            value = obj.Currency_;
-        end % get.Currency
+        function value = get.Pension(obj)
+            % Check if pension deduction is toggled.
+            if obj.DeductPension
+                value = obj.convertFrom(obj.Recurrence, ...
+                    obj.YearlyGrossIncome * obj.PensionContribution / 100);
+            else
+                value = 0;
+            end
+        end % get.Pension
         
         function value = get.MinIncome(obj)
             value = obj.convertFrom(obj.Recurrence, obj.MinYearlyIncome);
@@ -191,14 +183,23 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             
             value(end+1, :) = {"National Insurance", obj.NationalInsurance, ...
                 obj.Recurrence, "GBP"};
+            
+            % Add pension.
+            if obj.DeductPension
+                value(end+1, :) = {"Pension", obj.Pension, obj.Recurrence, "GBP"};
+            end
         end % get.TaxNITable
         
         function value = get.Deductions(obj)
-            % Sum and combine all deductions.
+            % Sum pre-tax voluntary contributions.
             value(1) = obj.convertFrom(obj.Recurrence, ...
                 sum(arrayfun(@(i) obj.convertTo(obj.PreTax.Recurrence(i), obj.PreTax.Deduction(i)), ...
                 1:size(obj.PreTax, 1))));
-            value(2) = obj.convertFrom(obj.Recurrence, sum(obj.YearlyTaxNI));
+            
+            % Sum pre-tax compulsory contributions.
+            value(2) = obj.convertFrom(obj.Recurrence, sum(obj.YearlyTaxNI) + obj.Pension);
+            
+            % Sum post-tax contributions.
             value(3) = obj.convertFrom(obj.Recurrence, ...
                 sum(arrayfun(@(i) obj.convertTo(obj.PostTax.Recurrence(i), obj.PostTax.Deduction(i)), ...
                 1:size(obj.PostTax, 1))));
@@ -331,12 +332,15 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % Check that MAT file exists.
             if exist(obj.Session, "file")
                 % Load MAT file.
-                load(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions");
+                load(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions", ...
+                    "deductPension", "pensionContribution");
                 
                 % Store values.
                 obj.YearlyGrossIncome = grossIncome;
                 obj.PreTax = preTaxDeductions;
                 obj.PostTax = postTaxDeductions;
+                obj.DeductPension = deductPension;
+                obj.PensionContribution = pensionContribution;
             end
         end % load
         
@@ -346,7 +350,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % the voluntary pre-tax and post-tax deductions.
             
             % Check that persistent folder exists.
-            if ~exist(fileparts(obj.Session), "dir")
+            if ~(ismcc || isdeployed) && ~exist(fileparts(obj.Session), "dir")
                 mkdir(fileparts(obj.Session))
             end
             
@@ -354,9 +358,12 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             grossIncome = obj.YearlyGrossIncome;
             preTaxDeductions = obj.PreTax;
             postTaxDeductions = obj.PostTax;
+            deductPension = obj.DeductPension;
+            pensionContribution = obj.PensionContribution;
             
             % Save MAT file.
-            save(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions");
+            save(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions", ...
+                "deductPension", "pensionContribution");
         end % save
         
         function update(obj)
@@ -380,10 +387,31 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.notify("Update");
         end % update
         
+        function addSetObservableListeners(obj)
+            % ADDSETOBSERVABLELISTENERS Internal function to add listeners
+            % to properties with 'SetObservable' attribute. The callback
+            % function is 'update' by default.
+            
+            % Extract list of properties with 'SetObservable' attribute.
+            meta = ?Finance;
+            props = string(arrayfun(@(x) x.Name, meta.PropertyList, 'UniformOutput', false));
+            setObs = arrayfun(@(x) x.SetObservable, meta.PropertyList);
+            
+            % Loop over properties and add listener.
+            for p = props(setObs)'
+                addlistener(obj, p, "PostSet", @(~, ~) update(obj));
+            end
+        end % addSetObservableListeners
+        
         function netIncome = deductPreTax(obj, netIncome)
             % DEDUCTPRETAX Internal function to subtract voluntary pre-tax
             % deductions. Voluntary pre-tax deductions are added with the
             % public method 'addPreTaxDeduction'.
+            
+            % Subtract pension.
+            if obj.DeductPension
+                netIncome = netIncome - netIncome * obj.PensionContribution / 100;
+            end
             
             % For each entry, subtract from income.
             for d = 1:size(obj.PreTax, 1)
@@ -423,7 +451,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % recurrence from speficied recurrence.
             
             % Convert to yearly value based on time recurrence.
-            value = obj.convertRecurrence(@times, recurrence, value);
+            value = obj.convertRecurrence(@times, recurrence, value, obj.WeeklyWorkDays, obj.DailyWorkHours);
         end % convertTo
         
         function value = convertFrom(obj, recurrence, value)
@@ -431,10 +459,14 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % yearly recurrence to speficied recurrence.
             
             % Convert from yearly value based on time recurrence.
-            value = obj.convertRecurrence(@rdivide, recurrence, value);
+            value = obj.convertRecurrence(@rdivide, recurrence, value, obj.WeeklyWorkDays, obj.DailyWorkHours);
         end % convertFrom
         
-        function value = convertRecurrence(obj, operator, recurrence, value)
+    end % methods (Access = private)
+    
+    methods (Static, Access = private)
+        
+        function value = convertRecurrence(operator, recurrence, value, workDays, workHours)
             % CONVERTRECURRENCE Convert recurrence with respect to yearly,
             % based on input operator.
             
@@ -447,16 +479,16 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
                 case "Weekly"
                     value = operator(value, 12 * 4);
                 case "Daily"
-                    value = operator(value, 12 * 4 * obj.WeeklyWorkDays);
+                    value = operator(value, 12 * 4 * workDays);
                 case "Hourly"
-                    value = operator(value, 12 * 4 * obj.WeeklyWorkDays * obj.DailyWorkHours);
+                    value = operator(value, 12 * 4 * workDays * workHours);
                 otherwise
                     error("Finance:Recurrence:UnknownInput", ...
                         "Recurrence '%s' is unknown and unsupported.", recurrence)
             end
         end % convertRecurrence
         
-    end % methods (Access = private)
+    end % methods (Static, Access = private)
     
 end
 
@@ -467,7 +499,7 @@ function mustBeCurrency(property)
 % Invoke internal function for member validation.
 mustBeMember(property, categorical(Finance.AllowedCurrencies))
 
-end
+end % mustBeCurrency
 
 function mustBeRecurrence(property)
 % MUSTBERECURRENCE Determine whether input value is part of the allowed
@@ -476,21 +508,16 @@ function mustBeRecurrence(property)
 % Invoke internal function for member validation.
 mustBeMember(property, categorical(Finance.AllowedRecurrence))
 
-end
+end % mustBeRecurrence
 
 function t = getEmptyDeductionTable()
 % GETEMPTYDEDUCTIONSTABLE Function to return an empty deductions table to
 % be used as visualization purposes.
 
 % Create empty table with deductions properties.
-t = cell2table(cell(0,4), "VariableNames", ["Name", "Deduction", "Currency", "Recurrence"]);
-
-t.Name = string.empty();
-
-t.Currency = categorical.empty();
+t = table('Size', [0, 4], 'VariableTypes', ["string", "double", "categorical", "categorical"], ...
+    'VariableNames', ["Name", "Deduction", "Currency", "Recurrence"]);
 t.Currency = setcats(t.Currency, Finance.AllowedCurrencies);
-
-t.Recurrence = categorical.empty();
 t.Recurrence = setcats(t.Recurrence, Finance.AllowedRecurrence);
 
 end % getEmptyDeductionTable
@@ -500,24 +527,24 @@ function sessionFile = getSessionFile()
 % session and store current one.
 
 % Hard-code file based on execution.
-if isdeployed
+if ismcc || isdeployed
     sessionFile = which("deductions.mat");
 else
     sessionFile = fullfile("persistent", "deductions.mat");
 end
 
-end
+end % getSessionFile
 
 function taxNIMatrix = getTaxNIMatrix()
 % GETTAXNIMATRIX Function to return the tax-NI matrix downloaded using
 % income-tax.co.uk APIs.
 
 % Get tax-NI information.
-if isdeployed
+if ismcc || isdeployed
     taxNIFile = which("taxNIInfo.mat");
 else
     taxNIFile = fullfile("persistent", "taxNIInfo.mat");
 end
 load(taxNIFile, "taxNIMatrix")
 
-end % getTaxBrackets
+end % getTaxNIMatrix

@@ -29,12 +29,9 @@ classdef (Abstract, Hidden) InputHandler < component.Handler
             % Create basic components.
             obj.createBasicComponents();
             
-            % Set default Cancel callbacks.
-            obj.CancelFcn = @(~, ~) obj.delete;
-            
             % Specify position of components.
             obj.setLayout();
-        end
+        end % constructor
         
         function value = get.EditFieldValue(obj)
             value = obj.EditField.Value;
@@ -106,6 +103,6 @@ classdef (Abstract, Hidden) InputHandler < component.Handler
             obj.delete();
         end % onCancel
         
-    end % methods (Access = protected)
+    end % methods (Access = private)
     
 end
