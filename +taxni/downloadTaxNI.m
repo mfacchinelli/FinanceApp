@@ -1,7 +1,8 @@
-function taxNIMatrix = downloadTaxNI(APIKey, income)
+function [taxNIMatrix, updateDate] = downloadTaxNI(APIKey, income)
 % DOWNLOADTAXNI Download monthly tax and NI details based on gross yearly
 % income, by using income-tax.co.uk APIs. The API key needs to be refreshed
-% daily.
+% daily and retrieved (manually) from:
+% https://www.income-tax.co.uk/tax-calculator-api/
 
 % Check arguments validity.
 arguments
@@ -16,7 +17,7 @@ url = sprintf("https://www.income-tax.co.uk/api/%s/%%d/", APIKey);
 taxNIMatrix = zeros(numel(income), 3);
 
 % Create 'weboptions' object.
-options = weboptions("Timeout", 5);
+options = weboptions("Timeout", 5, "CharacterEncoding", "UTF-8", "ContentType", "json");
 
 % Loop over income values.
 for i = 1:numel(income)
@@ -32,5 +33,8 @@ for i = 1:numel(income)
         taxNIMatrix(i, :) = zeros(1, 3);
     end
 end
+
+% Set last update date.
+updateDate = datetime("today");
 
 end

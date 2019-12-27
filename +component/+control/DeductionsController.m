@@ -15,8 +15,6 @@ classdef DeductionsController < component.Component
         Menus (1, :) matlab.ui.container.Menu = matlab.ui.container.Menu.empty()
         % Dialog app to add or remove deductions.
         Dialog component.window.DeductionsHandler = component.window.DeductionsHandler.empty()
-        % Listener to dialog app.
-        DialogListener (1, 1)
         % Internal value of the tracked property of the model.
         TrackedProperty_ string = string.empty()
     end % properties (Access = private)

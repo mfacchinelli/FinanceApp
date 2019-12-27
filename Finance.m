@@ -17,15 +17,15 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     end % properties (Dependent, SetAccess = private)
     
     properties (AbortSet, SetObservable)
-        % Value describing how to divide income.
-        Recurrence (1, 1) categorical {mustBeRecurrence} = "Yearly"
-        % Value describing default currency.
-        Currency (1, 1) categorical {mustBeCurrency} = "GBP"
         % Logical denoting whether pension has been added.
         DeductPension (1, 1) logical = false
         % Value of pre-tax pension contribution.
         PensionContribution (1, 1) double {mustBeNonnegative, ...
             mustBeLessThanOrEqual(PensionContribution, 100)} = 0
+        % Value describing how to divide income.
+        Recurrence (1, 1) categorical {mustBeRecurrence} = "Yearly"
+        % Value describing default currency.
+        Currency (1, 1) categorical {mustBeCurrency} = "GBP"
         % Number of work days per week.
         WeeklyWorkDays (1, 1) double {mustBePositive, mustBeInteger, ...
             mustBeLessThanOrEqual(WeeklyWorkDays, 7)} = 5
@@ -34,12 +34,12 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             mustBeLessThanOrEqual(DailyWorkHours, 24)} = 7.5
     end % properties (AbortSet, SetObservable)
     
-    properties (SetAccess = ?component.hybrid.SettingsViewController)
+    properties (SetAccess = private)
         % Table of voluntary pre-tax deductions.
         PreTax table = getEmptyDeductionTable()
         % Table of post-tax deductions.
         PostTax table = getEmptyDeductionTable()
-    end % properties (SetAccess = ?component.hybrid.SettingsViewController)
+    end % properties (SetAccess = private)
     
     properties (Dependent, SetAccess = private)
         % Value of minimum income of tabulated data.
@@ -48,13 +48,6 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         MaxIncome
     end % properties (Dependent, SetAccess = private)
     
-    properties (SetAccess = immutable, GetAccess = private)
-        % Value of minimum yearly income of tabulated data.
-        MinYearlyIncome double
-        % Value of maximum yearly income of tabulated data.
-        MaxYearlyIncome double
-    end % properties (SetAccess = immutable, GetAccess = private)
-    
     properties (Dependent, SetAccess = private, GetAccess = ?component.Component)
         % Combined values of tax and National Insurance as deduction table.
         TaxNITable
@@ -62,30 +55,40 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         Deductions
     end % properties (Hidden, Dependent, SetAccess = private)
     
-    properties (Access = ?component.hybrid.SettingsViewController)
+    properties (Access = private)
         % Private value of gross income.
         YearlyGrossIncome double = 100000
-    end % properties (Access = ?component.hybrid.SettingsViewController)
-    
-    properties (Access = private)
+        % Value of minimum yearly income of tabulated data.
+        MinYearlyIncome double
+        % Value of maximum yearly income of tabulated data.
+        MaxYearlyIncome double
         % Private value of net income.
         YearlyNetIncome double
         % Private value of tax and National Insurance.
         YearlyTaxNI double
+        % Matrix containing tax and National Insurance values as a function
+        % of gross income.
+        TaxNIMatrix double
     end % properties (Access = private)
+    
+    properties (Access = ?component.hybrid.SettingsViewController)
+        % Date denoting last time the tax and National Insurance
+        % information was updated.
+        TaxNIUpdate datetime
+    end % properties (Access = ?component.hybrid.SettingsViewController)
     
     properties (Constant)
         % Values of allowed currencies.
         AllowedCurrencies = ["GBP"]%, "EUR", "USD"]
         % Values of allowed recurrence.
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
+        % Name of MAT file containing UK tax and National Insurance values.
+        TaxNIFile = getTaxNIFile()
     end % properties (Constant)
     
     properties (Constant, Access = private)
         % Name of MAT file where current session is saved.
         Session = getSessionFile()
-        % UK tax and National Insurance matrix as a function of gross income.
-        TaxNIMatrix = getTaxNIMatrix()
     end % properties (Constant, Access = private)
     
     events
@@ -96,9 +99,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     methods
         
         function obj = Finance(varargin)
-            % Determine values of minumum and maximum of tabulated values.
-            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
-            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
+            % Set tax-NI information.
+            obj.loadTaxNIInformation();
             
             % Load previous session.
             obj.load();
@@ -197,7 +199,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
                 1:size(obj.PreTax, 1))));
             
             % Sum pre-tax compulsory contributions.
-            value(2) = obj.convertFrom(obj.Recurrence, sum(obj.YearlyTaxNI) + obj.Pension);
+            value(2) = obj.convertFrom(obj.Recurrence, sum(obj.YearlyTaxNI)) + obj.Pension;
             
             % Sum post-tax contributions.
             value(3) = obj.convertFrom(obj.Recurrence, ...
@@ -336,9 +338,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
                     "deductPension", "pensionContribution");
                 
                 % Store values.
-                obj.YearlyGrossIncome = grossIncome;
-                obj.PreTax = preTaxDeductions;
-                obj.PostTax = postTaxDeductions;
+                obj.setFromImport(grossIncome, preTaxDeductions, postTaxDeductions);
                 obj.DeductPension = deductPension;
                 obj.PensionContribution = pensionContribution;
             end
@@ -464,6 +464,39 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
     end % methods (Access = private)
     
+    methods (Access = ?component.hybrid.SettingsViewController)
+        
+        function setFromImport(obj, grossIncome, preTaxDeductions, postTaxDeductions)
+            % SETFROMIMPORT Internal function to set values of yearly gross
+            % income, and pre-tax and post-tax deductions from MAT file.
+            
+            % Store values.
+            obj.YearlyGrossIncome = grossIncome;
+            obj.PreTax = preTaxDeductions;
+            obj.PostTax = postTaxDeductions;
+        end % setFromImport
+        
+        function loadTaxNIInformation(obj)
+            % LOADTAXNIINFORMATION Internal function to load tax and
+            % National Insurance information from MAT file.
+            
+            % Load MAT file.
+            load(obj.TaxNIFile, "taxNIMatrix", "updateDate");
+            
+            % Store values.
+            obj.TaxNIMatrix = taxNIMatrix;
+            obj.TaxNIUpdate = updateDate;
+            
+            % Determine values of minumum and maximum of tabulated values.
+            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
+            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
+            
+            % Update finance.
+            obj.update();
+        end % loadTaxNIInformation
+        
+    end % methods (Access = ?component.hybrid.SettingsViewController)
+    
     methods (Static, Access = private)
         
         function value = convertRecurrence(operator, recurrence, value, workDays, workHours)
@@ -535,8 +568,8 @@ end
 
 end % getSessionFile
 
-function taxNIMatrix = getTaxNIMatrix()
-% GETTAXNIMATRIX Function to return the tax-NI matrix downloaded using
+function taxNIFile = getTaxNIFile()
+% GETTAXNIMATRIX Function to return the tax-NI file downloaded using
 % income-tax.co.uk APIs.
 
 % Get tax-NI information.
@@ -545,6 +578,5 @@ if ismcc || isdeployed
 else
     taxNIFile = fullfile("persistent", "taxNIInfo.mat");
 end
-load(taxNIFile, "taxNIMatrix")
 
 end % getTaxNIMatrix

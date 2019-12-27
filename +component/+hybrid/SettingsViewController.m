@@ -21,6 +21,8 @@ classdef (Sealed) SettingsViewController < component.ComponentWithListenerPanel
         TaxNIEditField matlab.ui.control.EditField
         % Button for tax-NI update.
         TaxNIButton matlab.ui.control.Button
+        % Dialog app to set API key.
+        Dialog component.window.APIHandler = component.window.APIHandler.empty()
     end
     
     properties (Constant, Access = private)
@@ -92,6 +94,7 @@ classdef (Sealed) SettingsViewController < component.ComponentWithListenerPanel
             obj.PensionSpinner.Value = obj.Model.PensionContribution;
             obj.WorkDaysSpinner.Value = obj.Model.WeeklyWorkDays;
             obj.WorkHoursSpinner.Value = obj.Model.DailyWorkHours;
+            obj.TaxNIEditField.Value = datestr(obj.Model.TaxNIUpdate, "dd mmmm yyyy");
         end % onUpdate
         
     end % methods (Access = protected)
@@ -189,10 +192,10 @@ classdef (Sealed) SettingsViewController < component.ComponentWithListenerPanel
             
             % Create update button.
             obj.TaxNIButton = uibutton(obj.TaxNIGrid, "push", ...
-                "Text", "Update", ...
-                "Enable", "off");
+                "Text", "Update");
             obj.TaxNIButton.Layout.Row = 1;
             obj.TaxNIButton.Layout.Column = 3;
+            obj.TaxNIButton.ButtonPushedFcn = @(~, ~) onDownload(obj);
         end % createComponents
         
         function onPensionCheck(obj, src, ~)
@@ -227,9 +230,7 @@ classdef (Sealed) SettingsViewController < component.ComponentWithListenerPanel
                     obj.ImportExportVariables(i))), 1:numel(obj.ImportExportVariables));
                 if all(checkExistence)
                     % Set variables in model.
-                    obj.Model.YearlyGrossIncome = grossIncome;
-                    obj.Model.PreTax = preTaxDeductions;
-                    obj.Model.PostTax = postTaxDeductions;
+                    obj.Model.setFromImport(grossIncome, preTaxDeductions, postTaxDeductions);
                     obj.Model.DeductPension = deductPension;
                     obj.Model.PensionContribution = pensionContribution;
                 else
@@ -260,6 +261,61 @@ classdef (Sealed) SettingsViewController < component.ComponentWithListenerPanel
             end
         end % onExport
         
+        function onDownload(obj, ~, ~)
+            % ONDOWNLOAD Internal function to update the tax-National
+            % Insurance information based on the income-tax.co.uk APIs.
+            
+            % Check that no other window is open.
+            if isempty(obj.Dialog) || ~obj.Dialog.IsValid
+                % Call UI dialog app to insert API key.
+                obj.Dialog = component.window.APIHandler( ...
+                    "ParentPosition", getRootFigure(obj.Parent).Position, ...
+                    "OKFcn", @obj.onDownloadOK);
+            else
+                uialert(getRootFigure(obj.Parent), ["A window of this kind is already open. ", ...
+                    "Please finish the previous operation before starting a new one."], ...
+                    "API Input Dialog Already Open", "Icon", "warning");
+            end
+            
+        end % onDownload
+        
     end % methods (Access = private)
+    
+    methods (Access = ?component.window.DeductionsHandler)
+        
+        function onDownloadOK(obj, ~, ~)
+            % ONDOWNLOADOK Internal function to download new tax and
+            % National Insurance information based on input API key.
+            
+            % Retrieve edit field value.
+            value = obj.Dialog.EditFieldValue;
+            
+            % Set range of incomes for download.
+            income = [0, 12500, 50000, 150000, 200000];
+            
+            % Try downloading new data.
+            try
+                % Download new tax and National Insurance information.
+                [taxNIMatrix, updateDate] = taxni.downloadTaxNI(value, income);
+                
+                % Save values to MAT file.
+                save(obj.Model.TaxNIFile, "taxNIMatrix", "updateDate");
+                
+                % Invoke load function for MAT file.
+                obj.Model.loadTaxNIInformation();
+            catch exception
+                if strcmp(exception.identifier, "MATLAB:webservices:ContentTypeReaderError")
+                    uialert(getRootFigure(obj.Parent), ...
+                        ["Input API key is not valid. Please download the current one from: ", ...
+                        "https://www.income-tax.co.uk/tax-calculator-api/"], ...
+                        "Invalid API Key");
+                else
+                    uialert(getRootFigure(obj.Parent), exception.message, ...
+                        sprintf("Caught Exception - %s", exception.identifier));
+                end
+            end
+        end % onDownloadOK
+        
+    end % methods (Access = ?component.window.DeductionsHandler)
     
 end

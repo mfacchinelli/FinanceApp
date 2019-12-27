@@ -8,8 +8,8 @@ while ~isa(obj, "matlab.ui.Figure")
     obj = obj.Parent;
     
     % Check that graphics root is not reached.
-    if isa(obj, "matlab.ui.Root")
-        error("RootFigure:NoFigureFound", "No figure was found.")
+    if isa(obj, "matlab.ui.Root") || isa(obj, "matlab.graphics.GraphicsPlaceholder")
+        error("RootFigure:NoFigure", "No figure was found.")
     end
 end
 
