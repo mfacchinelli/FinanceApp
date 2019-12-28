@@ -1,4 +1,4 @@
-classdef (Sealed, Hidden) DeductionsHandler < element.InputHandler
+classdef (Sealed) DeductionsHandler < element.InputHandler
     
     properties (Dependent, GetAccess = private)
         % String specifying selected mode.
@@ -20,7 +20,7 @@ classdef (Sealed, Hidden) DeductionsHandler < element.InputHandler
             set(obj, varargin{:})
             
             % Show figure after all components are created.
-            obj.Parent.Visible = "on";
+            obj.UIFigure.Visible = "on";
         end % constructor
         
         function set.Mode(obj, value)
@@ -28,7 +28,7 @@ classdef (Sealed, Hidden) DeductionsHandler < element.InputHandler
             [name, labelText, editFieldText] = obj.selectMode(value);
             
             % Set values.
-            obj.Parent.Name = name;
+            obj.UIFigure.Name = name;
             obj.Label.Text = labelText;
             obj.EditField.Value = editFieldText;
         end % set.Mode

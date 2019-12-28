@@ -1,4 +1,4 @@
-classdef (Sealed, Hidden) TaxAPIHandler < element.InputHandler
+classdef (Sealed) TaxAPIHandler < element.InputHandler
     
     methods
         
@@ -7,7 +7,7 @@ classdef (Sealed, Hidden) TaxAPIHandler < element.InputHandler
             obj@element.InputHandler();
             
             % Set figure properties.
-            obj.Parent.Name = "Set Income Tax API Key";
+            obj.UIFigure.Name = "Set Income Tax API Key";
             obj.Label.Text = ["Please enter the API key to download new tax and", ...
                         "National Insurance information, available from:"];
             obj.EditField.Value = "https://www.income-tax.co.uk/tax-calculator-api/";
@@ -16,7 +16,7 @@ classdef (Sealed, Hidden) TaxAPIHandler < element.InputHandler
             set(obj, varargin{:})
             
             % Show figure after all components are created.
-            obj.Parent.Visible = "on";
+            obj.UIFigure.Visible = "on";
         end % constructor
         
     end % methods

@@ -12,7 +12,7 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
     
     properties (Access = protected)
         % UI figure for obj.
-        Parent matlab.ui.Figure
+        UIFigure matlab.ui.Figure
         % Grid layout for obj.
         Grid matlab.ui.container.GridLayout
     end % properties (Access = protected)
@@ -21,11 +21,11 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
         
         function delete(obj)
             % Close figure to delete all children.
-            obj.Parent.delete();
+            obj.UIFigure.delete();
         end % destructor
         
         function value = get.IsValid(obj)
-            value = isvalid(obj) && isgraphics(obj.Parent);
+            value = isvalid(obj) && isgraphics(obj.UIFigure);
         end % set.IsValid
         
         function set.ParentPosition(obj, value)
@@ -36,7 +36,7 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
             position = value(1:2) + value(3:4) / 2 - size / 2;
             
             % Set window position.
-            obj.Parent.Position = [position, size];
+            obj.UIFigure.Position = [position, size];
         end % set.ParentPosition
         
     end % methods
@@ -48,15 +48,15 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
             % figure.
             
             % Create figure.
-            obj.Parent = uifigure( ...
+            obj.UIFigure = uifigure( ...
                 "HandleVisibility", "off", ...
                 "Resize", "off");
             
             % Hide figure until all components are created.
-            obj.Parent.Visible = "off";
+            obj.UIFigure.Visible = "off";
             
             % Create Grid.
-            obj.Grid = uigridlayout(obj.Parent);
+            obj.Grid = uigridlayout(obj.UIFigure);
         end % createComponents
         
     end % methods (Access = protected)

@@ -1,4 +1,4 @@
-classdef (Sealed, Hidden) CurrencyAPIHandler < element.InputHandler
+classdef (Sealed) CurrencyAPIHandler < element.InputHandler
     
     methods
         
@@ -7,7 +7,7 @@ classdef (Sealed, Hidden) CurrencyAPIHandler < element.InputHandler
             obj@element.InputHandler();
             
             % Set figure properties.
-            obj.Parent.Name = "Set Currency API Key";
+            obj.UIFigure.Name = "Set Currency API Key";
             obj.Label.Text = ["Please enter the API key to download currency", ...
                         "conversion information, available from:"];
             obj.EditField.Value = "https://fixer.io";
@@ -16,7 +16,7 @@ classdef (Sealed, Hidden) CurrencyAPIHandler < element.InputHandler
             set(obj, varargin{:})
             
             % Show figure after all components are created.
-            obj.Parent.Visible = "on";
+            obj.UIFigure.Visible = "on";
         end % constructor
         
     end % methods
