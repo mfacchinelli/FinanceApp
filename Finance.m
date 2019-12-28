@@ -39,6 +39,10 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         PreTax table = getEmptyDeductionTable()
         % Table of post-tax deductions.
         PostTax table = getEmptyDeductionTable()
+        % Conversion from GBP to EUR.
+        EUR2GBP double = 0.85
+        % Conversion from GBP to USD.
+        USD2GBP double = 0.75
     end % properties (SetAccess = private)
     
     properties (Dependent, SetAccess = private)
@@ -48,12 +52,12 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         MaxIncome
     end % properties (Dependent, SetAccess = private)
     
-    properties (Dependent, SetAccess = private, GetAccess = ?component.Component)
+    properties (Dependent, SetAccess = private, GetAccess = ?element.Component)
         % Combined values of tax and National Insurance as deduction table.
         TaxNITable
         % Combined values of all deductions.
         Deductions
-    end % properties (Hidden, Dependent, SetAccess = private)
+    end % properties (Dependent, SetAccess = private, GetAccess = ?element.Component)
     
     properties (Access = private)
         % Private value of gross income.
@@ -71,17 +75,21 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         TaxNIMatrix double
     end % properties (Access = private)
     
-    properties (Access = ?component.hybrid.SettingsViewController)
+    properties (Access = ?element.hybrid.SettingsViewController)
         % Date denoting last time the tax and National Insurance
         % information was updated.
         TaxNIUpdate datetime
-    end % properties (Access = ?component.hybrid.SettingsViewController)
+    end % properties (Access = ?element.hybrid.SettingsViewController)
     
     properties (Constant)
         % Values of allowed currencies.
-        AllowedCurrencies = ["GBP"]%, "EUR", "USD"]
+        AllowedCurrencies = ["GBP", "EUR", "USD"]
         % Values of allowed recurrence.
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
+        % Inflection points in gross income for tax and National Insurance.
+        InflectionValues = [0, 12500, 50000, 150000, 200000]
+        % Name of MAT file containing currency conversion values.
+        CurrencyFile = getCurrencyFile()
         % Name of MAT file containing UK tax and National Insurance values.
         TaxNIFile = getTaxNIFile()
     end % properties (Constant)
@@ -122,7 +130,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
         function set.GrossIncome(obj, value)
             % Convert value to yearly recurrence.
-            yearlyIncome = obj.convertTo(obj.Recurrence, value);
+            yearlyIncome = obj.convertTo(obj.Currency, obj.Recurrence, value);
             
             % Check that value of gross income is between minumum and
             % maximum of tabulated values.
@@ -139,29 +147,29 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         end % set.GrossIncome
         
         function value = get.GrossIncome(obj)
-            value = obj.convertFrom(obj.Recurrence, obj.YearlyGrossIncome);
+            value = obj.convertFrom(obj.Currency, obj.Recurrence, obj.YearlyGrossIncome);
         end % get.GrossIncome
         
         function set.NetIncome(obj, value)
-            obj.YearlyNetIncome = obj.convertTo(obj.Recurrence, value);
+            obj.YearlyNetIncome = obj.convertTo(obj.Currency, obj.Recurrence, value);
         end % set.NetIncome
         
         function value = get.NetIncome(obj)
-            value = obj.convertFrom(obj.Recurrence, obj.YearlyNetIncome);
+            value = obj.convertFrom(obj.Currency, obj.Recurrence, obj.YearlyNetIncome);
         end % get.NetIncome
         
         function value = get.Tax(obj)
-            value = obj.convertFrom(obj.Recurrence, obj.YearlyTaxNI(1));
+            value = obj.convertFrom(obj.Currency, obj.Recurrence, obj.YearlyTaxNI(1));
         end % get.Tax
         
         function value = get.NationalInsurance(obj)
-            value = obj.convertFrom(obj.Recurrence, obj.YearlyTaxNI(2));
+            value = obj.convertFrom(obj.Currency, obj.Recurrence, obj.YearlyTaxNI(2));
         end % get.NationalInsurance
         
         function value = get.Pension(obj)
             % Check if pension deduction is toggled.
             if obj.DeductPension
-                value = obj.convertFrom(obj.Recurrence, ...
+                value = obj.convertFrom(obj.Currency, obj.Recurrence, ...
                     obj.YearlyGrossIncome * obj.PensionContribution / 100);
             else
                 value = 0;
@@ -169,11 +177,11 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         end % get.Pension
         
         function value = get.MinIncome(obj)
-            value = obj.convertFrom(obj.Recurrence, obj.MinYearlyIncome);
+            value = obj.convertFrom(obj.Currency, obj.Recurrence, obj.MinYearlyIncome);
         end % get.MinIncome
         
         function value = get.MaxIncome(obj)
-            value = obj.convertFrom(obj.Recurrence, obj.MaxYearlyIncome);
+            value = obj.convertFrom(obj.Currency, obj.Recurrence, obj.MaxYearlyIncome);
         end % get.MaxIncome
         
         function value = get.TaxNITable(obj)
@@ -194,17 +202,17 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
         function value = get.Deductions(obj)
             % Sum pre-tax voluntary contributions.
-            value(1) = obj.convertFrom(obj.Recurrence, ...
-                sum(arrayfun(@(i) obj.convertTo(obj.PreTax.Recurrence(i), obj.PreTax.Deduction(i)), ...
-                1:size(obj.PreTax, 1))));
+            value(1) = obj.convertFrom(obj.Currency, obj.Recurrence, ...
+                sum(arrayfun(@(i) obj.convertTo(obj.PreTax.Currency(i), obj.PreTax.Recurrence(i), ...
+                obj.PreTax.Deduction(i)), 1:size(obj.PreTax, 1))));
             
             % Sum pre-tax compulsory contributions.
-            value(2) = obj.convertFrom(obj.Recurrence, sum(obj.YearlyTaxNI)) + obj.Pension;
+            value(2) = obj.convertFrom(obj.Currency, obj.Recurrence, sum(obj.YearlyTaxNI)) + obj.Pension;
             
             % Sum post-tax contributions.
-            value(3) = obj.convertFrom(obj.Recurrence, ...
-                sum(arrayfun(@(i) obj.convertTo(obj.PostTax.Recurrence(i), obj.PostTax.Deduction(i)), ...
-                1:size(obj.PostTax, 1))));
+            value(3) = obj.convertFrom(obj.Currency, obj.Recurrence, ...
+                sum(arrayfun(@(i) obj.convertTo(obj.PostTax.Currency(i), obj.PostTax.Recurrence(i), ...
+                obj.PostTax.Deduction(i)), 1:size(obj.PostTax, 1))));
         end % get.Deductions
         
     end % methods
@@ -324,7 +332,78 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
     end % methods (Access = public)
     
+    methods (Hidden, Access = public)
+        
+        function setFromImport(obj, grossIncome, preTaxDeductions, postTaxDeductions)
+            % SETFROMIMPORT Function to set values of yearly gross income,
+            % and pre-tax and post-tax deductions from MAT file.
+            
+            % Store values.
+            obj.YearlyGrossIncome = grossIncome;
+            obj.PreTax = preTaxDeductions;
+            obj.PostTax = postTaxDeductions;
+        end % setFromImport
+        
+        function [grossIncome, preTaxDeductions, postTaxDeductions] = getForExport(obj)
+            % GETFOREXPORT Function to get values of yearly gross income,
+            % and pre-tax and post-tax deductions for export to MAT file.
+            
+            % Store values.
+            grossIncome = obj.YearlyGrossIncome;
+            preTaxDeductions = obj.PreTax;
+            postTaxDeductions = obj.PostTax;
+        end % setFromImport
+        
+        function setCurrencyConversion(obj, EUR2GBP, USD2GBP)
+            % SETCURRENCYCONVERSION Function to set values of conversion
+            % for currencies (EUR and USD) to GBP.
+            
+            % Store values.
+            obj.EUR2GBP = EUR2GBP;
+            obj.USD2GBP = USD2GBP;
+            
+            % Update finance.
+            obj.update();
+        end
+        
+        function loadTaxNIInformation(obj)
+            % LOADTAXNIINFORMATION Function to load tax and National
+            % Insurance information from MAT file.
+            
+            % Load MAT file.
+            load(obj.TaxNIFile, "taxNIMatrix", "updateDate");
+            
+            % Store values.
+            obj.TaxNIMatrix = taxNIMatrix;
+            obj.TaxNIUpdate = updateDate;
+            
+            % Determine values of minumum and maximum of tabulated values.
+            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
+            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
+            
+            % Update finance.
+            obj.update();
+        end % loadTaxNIInformation
+        
+    end % methods (Hidden, Access = public)
+    
     methods (Access = private)
+        
+        function addSetObservableListeners(obj)
+            % ADDSETOBSERVABLELISTENERS Internal function to add listeners
+            % to properties with 'SetObservable' attribute. The callback
+            % function is 'update' by default.
+            
+            % Extract list of properties with 'SetObservable' attribute.
+            meta = ?Finance;
+            props = string(arrayfun(@(x) x.Name, meta.PropertyList, 'UniformOutput', false));
+            setObs = arrayfun(@(x) x.SetObservable, meta.PropertyList);
+            
+            % Loop over properties and add listener.
+            for p = props(setObs)'
+                addlistener(obj, p, "PostSet", @(~, ~) update(obj));
+            end
+        end % addSetObservableListeners
         
         function load(obj)
             % LOAD Internal function to load previous session of app. The
@@ -387,22 +466,6 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.notify("Update");
         end % update
         
-        function addSetObservableListeners(obj)
-            % ADDSETOBSERVABLELISTENERS Internal function to add listeners
-            % to properties with 'SetObservable' attribute. The callback
-            % function is 'update' by default.
-            
-            % Extract list of properties with 'SetObservable' attribute.
-            meta = ?Finance;
-            props = string(arrayfun(@(x) x.Name, meta.PropertyList, 'UniformOutput', false));
-            setObs = arrayfun(@(x) x.SetObservable, meta.PropertyList);
-            
-            % Loop over properties and add listener.
-            for p = props(setObs)'
-                addlistener(obj, p, "PostSet", @(~, ~) update(obj));
-            end
-        end % addSetObservableListeners
-        
         function netIncome = deductPreTax(obj, netIncome)
             % DEDUCTPRETAX Internal function to subtract voluntary pre-tax
             % deductions. Voluntary pre-tax deductions are added with the
@@ -416,7 +479,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % For each entry, subtract from income.
             for d = 1:size(obj.PreTax, 1)
                 % Convert to yearly.
-                yearlyDeduction = obj.convertTo( ...
+                yearlyDeduction = obj.convertTo(obj.PreTax.Currency(d), ...
                     obj.PreTax.Recurrence(d), obj.PreTax.Deduction(d));
                 
                 % Subtract from income.
@@ -438,7 +501,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % For each entry, subtract from income.
             for d = 1:size(obj.PostTax, 1)
                 % Convert to yearly.
-                yearlyDeduction = obj.convertTo( ...
+                yearlyDeduction = obj.convertTo(obj.PostTax.Currency(d), ...
                     obj.PostTax.Recurrence(d), obj.PostTax.Deduction(d));
                 
                 % Subtract from income.
@@ -446,58 +509,49 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             end
         end % deductPostTax
         
-        function value = convertTo(obj, recurrence, value)
-            % CONVERTTOYEARLY Internal function to convert value to yearly
-            % recurrence from speficied recurrence.
+        function value = convertTo(obj, currency, recurrence, value)
+            % CONVERTTO Internal function to convert value to GBP and
+            % yearly recurrence from speficied currency and recurrence.
             
-            % Convert to yearly value based on time recurrence.
+            % Convert to GBP from specified currency.
+            value = obj.convertCurrency(@times, currency, value, obj.EUR2GBP, obj.USD2GBP);
+            
+            % Convert to yearly from specified recurrence.
             value = obj.convertRecurrence(@times, recurrence, value, obj.WeeklyWorkDays, obj.DailyWorkHours);
         end % convertTo
         
-        function value = convertFrom(obj, recurrence, value)
-            % CONVERTFROMYEARLY Internal function to convert value from
-            % yearly recurrence to speficied recurrence.
+        function value = convertFrom(obj, currency, recurrence, value)
+            % CONVERTFROM Internal function to convert value from GBP and
+            % yearly recurrence to speficied currency and recurrence.
             
-            % Convert from yearly value based on time recurrence.
+            % Convert from GBP to specified currency.
+            value = obj.convertCurrency(@rdivide, currency, value, obj.EUR2GBP, obj.USD2GBP);
+            
+            % Convert from yearly to specified recurrence.
             value = obj.convertRecurrence(@rdivide, recurrence, value, obj.WeeklyWorkDays, obj.DailyWorkHours);
         end % convertFrom
         
     end % methods (Access = private)
     
-    methods (Access = ?component.hybrid.SettingsViewController)
-        
-        function setFromImport(obj, grossIncome, preTaxDeductions, postTaxDeductions)
-            % SETFROMIMPORT Internal function to set values of yearly gross
-            % income, and pre-tax and post-tax deductions from MAT file.
-            
-            % Store values.
-            obj.YearlyGrossIncome = grossIncome;
-            obj.PreTax = preTaxDeductions;
-            obj.PostTax = postTaxDeductions;
-        end % setFromImport
-        
-        function loadTaxNIInformation(obj)
-            % LOADTAXNIINFORMATION Internal function to load tax and
-            % National Insurance information from MAT file.
-            
-            % Load MAT file.
-            load(obj.TaxNIFile, "taxNIMatrix", "updateDate");
-            
-            % Store values.
-            obj.TaxNIMatrix = taxNIMatrix;
-            obj.TaxNIUpdate = updateDate;
-            
-            % Determine values of minumum and maximum of tabulated values.
-            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
-            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
-            
-            % Update finance.
-            obj.update();
-        end % loadTaxNIInformation
-        
-    end % methods (Access = ?component.hybrid.SettingsViewController)
-    
     methods (Static, Access = private)
+        
+        function value = convertCurrency(operator, currency, value, EUR2GBP, USD2GBP)
+            % CONVERTCURRENCY Convert currency with respect to GBP, based
+            % on input operator.
+            
+            % Convert based on currency.
+            switch currency
+                case "GBP"
+                    % Do nothing.
+                case "EUR"
+                    value = operator(value, EUR2GBP);
+                case "USD"
+                    value = operator(value, USD2GBP);
+                otherwise
+                    error("Finance:Currency:UnknownInput", ...
+                        "Currency '%s' is unknown and unsupported.", recurrence)
+            end
+        end
         
         function value = convertRecurrence(operator, recurrence, value, workDays, workHours)
             % CONVERTRECURRENCE Convert recurrence with respect to yearly,
@@ -580,3 +634,16 @@ else
 end
 
 end % getTaxNIMatrix
+
+function currencyFile = getCurrencyFile()
+% GETCURRENCYFILE Function to return the file where the currency API key
+% for fixer.io is stored.
+
+% Get currency information.
+if ismcc || isdeployed
+    currencyFile = which("currencyAPI.mat");
+else
+    currencyFile = fullfile("persistent", "currencyAPI.mat");
+end
+
+end % getCurrencyFile
