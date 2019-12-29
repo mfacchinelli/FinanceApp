@@ -1,8 +1,8 @@
-classdef (Sealed, Hidden) Null < element.Component
+classdef (Sealed, Hidden) NullComponent < element.Component
     
     methods
         
-        function obj = Null()
+        function obj = NullComponent()
             % Set properties to empty.
             obj@element.Component()
         end

@@ -85,7 +85,7 @@ classdef DeductionsController < element.Component
             % deductions.
             
             % Check that no other window is open.
-            if isempty(obj.Dialog) || ~obj.Dialog.IsValid
+            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
                 % Call UI dialog app.
                 obj.Dialog = element.window.DeductionsHandler( ...
                     "Mode", "add", ...
@@ -104,7 +104,7 @@ classdef DeductionsController < element.Component
             % from finance model.
             
             % Check that no other window is open.
-            if isempty(obj.Dialog) || ~obj.Dialog.IsValid
+            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
                 % Call UI dialog app.
                 obj.Dialog = element.window.DeductionsHandler( ...
                     "Mode", "remove", ...

@@ -3,6 +3,8 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
     properties (Access = private)
         % Grid for deductions panel.
         DeductionsGrid matlab.ui.container.GridLayout
+        % Grid for currency panel.
+        CurrencyGrid matlab.ui.container.GridLayout
         % Grid for tax-National Insurance panel.
         TaxNIGrid matlab.ui.container.GridLayout
         % Check box for pension toggling.
@@ -17,12 +19,16 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
         ImportButton matlab.ui.control.Button
         % Button for export of deductions file.
         ExportButton matlab.ui.control.Button
+        % Button for update of API key for fixer.io.
+        CurrencyAPIButton matlab.ui.control.Button
+        % Button for currency conversion update.
+        CurrencyUpdateButton matlab.ui.control.Button
         % Edit field for tax-NI last update.
         TaxNIEditField matlab.ui.control.EditField
         % Button for tax-NI update.
         TaxNIButton matlab.ui.control.Button
         % Dialog app to set API key.
-        Dialog element.window.TaxAPIHandler = element.window.TaxAPIHandler.empty()
+        Dialog element.Handler = element.null.NullHandler
     end
     
     properties (Constant, Access = private)
@@ -39,9 +45,9 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             obj.Main.BorderType = "none";
             
             % Create grid.
-            obj.Grid = uigridlayout(obj.Main, [1, 2], ...
+            obj.Grid = uigridlayout(obj.Main, [1, 3], ...
                 "ColumnWidth", "1x", ...
-                "RowHeight", ["2x", "1x"]);
+                "RowHeight", ["2x", "1x", "1x"]);
             
             % Create panels for main objects.
             deductionsPanel = uipanel(obj.Grid, ...
@@ -50,20 +56,30 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             deductionsPanel.Layout.Row = 1;
             deductionsPanel.Layout.Column = 1;
             
+            currencyPanel = uipanel(obj.Grid, ...
+                "Title", "Currency Conversion", ...
+                "FontWeight", "bold");
+            currencyPanel.Layout.Row = 2;
+            currencyPanel.Layout.Column = 1;
+            
             taxNIPanel = uipanel(obj.Grid, ...
                 "Title", "Tax and National Insurance", ...
                 "FontWeight", "bold");
-            taxNIPanel.Layout.Row = 2;
+            taxNIPanel.Layout.Row = 3;
             taxNIPanel.Layout.Column = 1;
             
             % Create layouts for main objects.
-            obj.DeductionsGrid = uigridlayout(deductionsPanel);
-            obj.DeductionsGrid.ColumnWidth = ["2x", "1x", "2x", "1x"];
-            obj.DeductionsGrid.RowHeight = ["1x", "1x", "1x"];
+            obj.DeductionsGrid = uigridlayout(deductionsPanel, ...
+                "ColumnWidth", ["2x", "1x", "2x", "1x"], ...
+                "RowHeight", ["1x", "1x", "1x"]);
             
-            obj.TaxNIGrid = uigridlayout(taxNIPanel);
-            obj.TaxNIGrid.ColumnWidth = ["1x", "1x", "1x"];
-            obj.TaxNIGrid.RowHeight = "1x";
+            obj.CurrencyGrid = uigridlayout(currencyPanel, ...
+                "ColumnWidth", ["1x", "1x"], ...
+                "RowHeight", "1x");
+            
+            obj.TaxNIGrid = uigridlayout(taxNIPanel, ...
+                "ColumnWidth", ["1x", "1x", "1x"], ...
+                "RowHeight", "1x");
             
             % Create all objects.
             obj.createComponents();
@@ -107,10 +123,10 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             
             % Create pension check box.
             obj.PensionCheckBox = uicheckbox(obj.DeductionsGrid, ...
-                "Text", "Add Penstion to Pre-Tax");
+                "Text", "Add Penstion to Pre-Tax", ...
+                "ValueChangedFcn", @obj.onPensionCheck);
             obj.PensionCheckBox.Layout.Row = 1;
             obj.PensionCheckBox.Layout.Column = 1;
-            obj.PensionCheckBox.ValueChangedFcn = @obj.onPensionCheck;
             
             % Create label for pension contribution spinner.
             pensionLabel = uilabel(obj.DeductionsGrid, ...
@@ -123,15 +139,14 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             obj.PensionSpinner = uispinner(obj.DeductionsGrid, ...
                 "Step", 0.5, ...
                 "Limits", [0, 100], ...
-                "Enable", "off");
+                "Enable", "off", ...
+                "ValueChangedFcn", @(src, ~) set(obj.Model, "PensionContribution", src.Value));
             obj.PensionSpinner.Layout.Row = 2;
             obj.PensionSpinner.Layout.Column = 2;
-            obj.PensionSpinner.ValueChangedFcn = ...
-                @(src, ~) set(obj.Model, "PensionContribution", src.Value);
             
             % Create label for work days spinner.
             workDaysLabel = uilabel(obj.DeductionsGrid, ...
-                "Text", "Working days per week:", ...
+                "Text", "Work days per week:", ...
                 "HorizontalAlignment", "right");
             workDaysLabel.Layout.Row = 1;
             workDaysLabel.Layout.Column = 3;
@@ -140,15 +155,14 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             obj.WorkDaysSpinner = uispinner(obj.DeductionsGrid, ...
                 "Step", 1, ...
                 "Limits", [1, 7], ...
-                "Editable", "off");
+                "Editable", "off", ...
+                "ValueChangedFcn", @(src, ~) set(obj.Model, "WeeklyWorkDays", src.Value));
             obj.WorkDaysSpinner.Layout.Row = 1;
             obj.WorkDaysSpinner.Layout.Column = 4;
-            obj.WorkDaysSpinner.ValueChangedFcn = ...
-                @(src, ~) set(obj.Model, "WeeklyWorkDays", src.Value);
             
             % Create label for work hours spinner.
             workHoursLabel = uilabel(obj.DeductionsGrid, ...
-                "Text", "Working hours per day:", ...
+                "Text", "Work hours per day:", ...
                 "HorizontalAlignment", "right");
             workHoursLabel.Layout.Row = 2;
             workHoursLabel.Layout.Column = 3;
@@ -156,25 +170,38 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             % Create work hours spinner.
             obj.WorkHoursSpinner = uispinner(obj.DeductionsGrid, ...
                 "Step", 0.25, ...
-                "Limits", [0.25, 24]);
+                "Limits", [0.25, 24], ...
+                "ValueChangedFcn", @(src, ~) set(obj.Model, "DailyWorkHours", src.Value));
             obj.WorkHoursSpinner.Layout.Row = 2;
             obj.WorkHoursSpinner.Layout.Column = 4;
-            obj.WorkHoursSpinner.ValueChangedFcn = ...
-                @(src, ~) set(obj.Model, "DailyWorkHours", src.Value);
             
             % Create import button.
             obj.ImportButton = uibutton(obj.DeductionsGrid, "push", ...
-                "Text", "Import Deductions MAT");
+                "Text", "Import Deductions MAT", ...
+                "ButtonPushedFcn", @(~, ~) onImport(obj));
             obj.ImportButton.Layout.Row = 3;
             obj.ImportButton.Layout.Column = [1, 2];
-            obj.ImportButton.ButtonPushedFcn = @(~, ~) onImport(obj);
             
-            % Create export button.s
+            % Create export button.
             obj.ExportButton = uibutton(obj.DeductionsGrid, "push", ...
-                "Text", "Export Deductions MAT");
+                "Text", "Export Deductions MAT", ...
+                "ButtonPushedFcn", @(~, ~) onExport(obj));
             obj.ExportButton.Layout.Row = 3;
             obj.ExportButton.Layout.Column = [3, 4];
-            obj.ExportButton.ButtonPushedFcn = @(~, ~) onExport(obj);
+            
+            % Create import button.
+            obj.CurrencyAPIButton = uibutton(obj.CurrencyGrid, "push", ...
+                "Text", "Set API for fixer.io", ...
+                "ButtonPushedFcn", @(~, ~) onCurrencyAPI(obj));
+            obj.CurrencyAPIButton.Layout.Row = 1;
+            obj.CurrencyAPIButton.Layout.Column = 1;
+            
+            % Create export button.
+            obj.CurrencyUpdateButton = uibutton(obj.CurrencyGrid, "push", ...
+                "Text", "Update", ...
+                "ButtonPushedFcn", @(~, ~) onCurrencyUpdate(obj));
+            obj.CurrencyUpdateButton.Layout.Row = 1;
+            obj.CurrencyUpdateButton.Layout.Column = 2;
             
             % Create label for tax-NI edit field.
             taxNILabel = uilabel(obj.TaxNIGrid, ...
@@ -192,10 +219,10 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             
             % Create update button.
             obj.TaxNIButton = uibutton(obj.TaxNIGrid, "push", ...
-                "Text", "Update");
+                "Text", "Update", ...
+                "ButtonPushedFcn", @(~, ~) onTaxNIUpdate(obj));
             obj.TaxNIButton.Layout.Row = 1;
             obj.TaxNIButton.Layout.Column = 3;
-            obj.TaxNIButton.ButtonPushedFcn = @(~, ~) onDownload(obj);
         end % createComponents
         
         function onPensionCheck(obj, src, ~)
@@ -259,30 +286,102 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             end
         end % onExport
         
-        function onDownload(obj, ~, ~)
-            % ONDOWNLOAD Internal function to update the tax-National
+        function onCurrencyAPI(obj)
+            % ONCURRENCYAPI Internal function to ask user for API key to
+            % fixer.io. Free account is required.
+            
+            % Check that no other window is open.
+            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
+                % Ask user for API key and save it in MAT file.
+                obj.Dialog = element.window.CurrencyAPIHandler( ...
+                    "ParentPosition", getRootFigure(obj.Parent).Position, ...
+                    "OKFcn", @obj.onCurrencyOK);
+            else
+                uialert(getRootFigure(obj.Parent), ["A window of this kind is already open. ", ...
+                    "Please finish the previous operation before starting a new one."], ...
+                    "API Input Dialog Already Open", "Icon", "warning");
+            end
+        end % onCurrencyAPI
+        
+        function onCurrencyUpdate(obj)
+            % ONCURRENCYUPDATE Internal function to download currency
+            % conversion information from fixer.io.
+            
+            % Check for MAT file containing currency API key.
+            if exist(obj.Model.CurrencyFile, "file")
+                % Load API key.
+                load(obj.Model.CurrencyFile, "APIKey");
+                
+                % Check that API key is not empty and valid.
+                if isempty(APIKey) || ~(isstring(APIKey) || ischar(APIKey))
+                    % Delete any previous window.
+                    obj.Dialog.delete();
+                    
+                    % Reset API key.
+                    obj.onCurrencyAPI();
+                else
+                    % Try downloading data.
+                    try
+                        % Download conversions.
+                        [EUR2GBP, USD2GBP] = currency.downloadConversions(APIKey);
+                        
+                        % Store values.
+                        obj.Model.setCurrencyConversion(EUR2GBP, USD2GBP);
+                    catch exception
+                        if strcmp(exception.identifier, "MATLAB:webservices:ContentTypeReaderError")
+                            uialert(getRootFigure(obj.Parent), ...
+                                ["Input API key is not valid. Please download the current one from: ", ...
+                                "https://www.income-tax.co.uk/tax-calculator-api/"], ...
+                                "Invalid API Key");
+                        else
+                            uialert(getRootFigure(obj.Parent), exception.message, ...
+                                sprintf("Caught Exception - %s", exception.identifier));
+                        end
+                    end
+                end
+            else
+                % Set API key.
+                obj.onCurrencyAPI();
+            end
+        end % onCurrencyUpdate
+        
+        function onTaxNIUpdate(obj, ~, ~)
+            % ONTAXNIUPDATE Internal function to update the tax-National
             % Insurance information based on the income-tax.co.uk APIs.
             
             % Check that no other window is open.
-            if isempty(obj.Dialog) || ~obj.Dialog.IsValid
+            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
                 % Call UI dialog app to insert API key.
                 obj.Dialog = element.window.TaxAPIHandler( ...
                     "ParentPosition", getRootFigure(obj.Parent).Position, ...
-                    "OKFcn", @obj.onDownloadOK);
+                    "OKFcn", @obj.onTaxNIOK);
             else
                 uialert(getRootFigure(obj.Parent), ["A window of this kind is already open. ", ...
                     "Please finish the previous operation before starting a new one."], ...
                     "API Input Dialog Already Open", "Icon", "warning");
             end
             
-        end % onDownload
+        end % onTaxNIUpdate
         
     end % methods (Access = private)
     
-    methods (Access = ?element.window.DeductionsHandler)
+    methods (Access = private)
         
-        function onDownloadOK(obj, ~, ~)
-            % ONDOWNLOADOK Internal function to download new tax and
+        function onCurrencyOK(obj, ~, ~)
+            % ONCURRENCYOK Internal function to store API key to MAT file.
+            
+            % Retrieve value.
+            APIKey = obj.Dialog.EditFieldValue;
+            
+            % Save value to MAT file.
+            save(obj.Model.CurrencyFile, "APIKey");
+            
+            % Call function to download currency conversions.
+            obj.onCurrencyUpdate();
+        end % onCurrencyOK
+        
+        function onTaxNIOK(obj, ~, ~)
+            % ONTAXNIOK Internal function to download new tax and
             % National Insurance information based on input API key.
             
             % Retrieve edit field value.
@@ -309,8 +408,8 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
                         sprintf("Caught Exception - %s", exception.identifier));
                 end
             end
-        end % onDownloadOK
+        end % onTaxNIOK
         
-    end % methods (Access = ?element.window.DeductionsHandler)
+    end % methods (Access = private)
     
 end

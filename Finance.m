@@ -332,7 +332,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
     end % methods (Access = public)
     
-    methods (Hidden, Access = public)
+    methods (Access = ?element.hybrid.SettingsViewController)
         
         function setFromImport(obj, grossIncome, preTaxDeductions, postTaxDeductions)
             % SETFROMIMPORT Function to set values of yearly gross income,
@@ -385,7 +385,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.update();
         end % loadTaxNIInformation
         
-    end % methods (Hidden, Access = public)
+    end % methods (Access = ?element.hybrid.SettingsViewController)
     
     methods (Access = private)
         

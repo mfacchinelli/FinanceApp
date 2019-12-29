@@ -1,4 +1,4 @@
-classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
+classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames & matlab.mixin.Heterogeneous
     
     properties (Dependent, SetAccess = private)
         % Logical denoting whether the window is valid.
@@ -25,7 +25,13 @@ classdef (Abstract, Hidden) Handler < matlab.mixin.SetGetExactNames
         end % destructor
         
         function value = get.IsValid(obj)
-            value = isvalid(obj) && isgraphics(obj.UIFigure);
+            if ~isvalid(obj)
+                value = false;
+            elseif isempty(obj.UIFigure)
+                value = false;
+            else
+                value = isvalid(obj) && isgraphics(obj.UIFigure);
+            end
         end % set.IsValid
         
         function set.ParentPosition(obj, value)
