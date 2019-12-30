@@ -44,4 +44,45 @@ classdef (Abstract, Hidden) Component < element.Element
         
     end % methods
     
+    methods (Static, Access = protected)
+        
+        function evalErrorHandler(command, type, rootFigure)
+            % EVALERRORHANDER Evaluate command in caller workspace and
+            % handle eventual errors.
+            
+            % Check inputs.
+            narginchk(2, 3)
+            
+            % Select error types.
+            switch type
+                case "class"
+                    identifier = "MATLAB:undefinedVarOrClass";
+                    message = "Selected window type does not exist.";
+                case "method"
+                    identifier = "MATLAB:noSuchMethodOrField";
+                    message = "Selected class method does not exist.";
+                otherwise
+                    error("MATLAB:EvalErrorHandler:InvalidType", ...
+                        "Selected type '%s' does not exist.", type)
+            end
+            
+            % Try calling function.
+            try
+                evalin("caller", command);
+            catch exception
+                if strcmp(exception.identifier, identifier)
+                    error("MATLAB:EvalErrorHandler:InvalidCommand", message)
+                else
+                    if nargin == 3
+                        uialert(rootFigure, exception.message, ...
+                            sprintf("Caught Exception - %s", exception.identifier));
+                    else
+                        rethrow(exception)
+                    end
+                end
+            end
+        end % evalErrorHandler
+        
+    end % methods (Static, Access = protected)
+    
 end

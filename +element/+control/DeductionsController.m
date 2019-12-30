@@ -1,4 +1,4 @@
-classdef DeductionsController < element.Component
+classdef (Sealed) DeductionsController < element.Component & element.DialogHandler
     
     properties (Dependent)
         % String defining the name of the tracked property of the model.
@@ -13,8 +13,6 @@ classdef DeductionsController < element.Component
     properties (Access = private)
         % Array of submenus.
         Menus (1, :) matlab.ui.container.Menu = matlab.ui.container.Menu.empty()
-        % Dialog app to add or remove deductions.
-        Dialog element.window.DeductionsHandler = element.window.DeductionsHandler.empty()
         % Internal value of the tracked property of the model.
         TrackedProperty_ string = string.empty()
     end % properties (Access = private)
@@ -84,38 +82,24 @@ classdef DeductionsController < element.Component
             % ONADD Internal function to create dialog input to add
             % deductions.
             
-            % Check that no other window is open.
-            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
-                % Call UI dialog app.
-                obj.Dialog = element.window.DeductionsHandler( ...
-                    "Mode", "add", ...
-                    "ParentPosition", obj.Parent.Position, ...
-                    "OKFcn", @obj.onAddOK);
-            else
-                uialert(getRootFigure(obj.Parent), ["A window of this kind is already open. ", ...
-                    "Please finish the previous operation before starting a new one."], ...
-                    sprintf("%s Input Dialog Already Open", obj.TrackedProperty_), ...
-                    "Icon", "warning");
-            end
+            % Call UI dialog app.
+            obj.createDialog(getRootFigure(obj.Parent), ...
+                "element.window.DeductionsHandler", ...
+                "Mode", "add", ...
+                "ParentPosition", getRootFigure(obj).Position, ...
+                "OKFcn", @obj.onAddOK);
         end % onAdd
         
         function onRemoveRows(obj, ~, ~)
             % ONREMOVEROWS Internal function to remove specific deductions
             % from finance model.
             
-            % Check that no other window is open.
-            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
-                % Call UI dialog app.
-                obj.Dialog = element.window.DeductionsHandler( ...
-                    "Mode", "remove", ...
-                    "ParentPosition", obj.Parent.Position, ...
-                    "OKFcn", @obj.onRemoveRowsOK);
-            else
-                uialert(getRootFigure(obj.Parent), ["A window of this kind is already open. ", ...
-                    "Please finish the previous operation before starting a new one."], ...
-                    "Input Dialog Already Open", ...
-                    "Icon", "warning");
-            end
+            % Call UI dialog app.
+            obj.createDialog(getRootFigure(obj.Parent), ...
+                "element.window.DeductionsHandler", ...
+                "Mode", "remove", ...
+                "ParentPosition", getRootFigure(obj).Position, ...
+                "OKFcn", @obj.onRemoveRowsOK);
         end % onRemoveRows
         
         function onRemoveEverything(obj, ~, ~)
@@ -130,7 +114,7 @@ classdef DeductionsController < element.Component
                 "Icon", "Warning", ...
                 "CloseFcn", @obj.onRemoveEverythingOK);
         end % onRemoveEverything
-                    
+        
         function onAddOK(obj, ~, ~)
             % ONADDOK Internal function to add deduction to finance model.
             
@@ -147,17 +131,8 @@ classdef DeductionsController < element.Component
             splitvalue{2} = str2double(splitvalue{2}); %#ok<NASGU>
             
             % Pass information to model for further processing.
-            try
-                eval(sprintf("obj.Model.add%sDeduction(splitvalue{:});", obj.TrackedProperty_))
-            catch exception
-                if strcmp(exception.identifier, "MATLAB:noSuchMethodOrField")
-                    error("DeductionsController:Add:InvalidProperty", ...
-                        "Selected property does not have an add method.")
-                else
-                    uialert(getRootFigure(obj.Parent), exception.message, ...
-                        sprintf("Caught Exception - %s", exception.identifier));
-                end
-            end
+            obj.evalErrorHandler(sprintf("obj.Model.add%sDeduction(splitvalue{:});", obj.TrackedProperty_), ...
+                "method", getRootFigure(obj));
         end % onAddOK
         
         function onRemoveRowsOK(obj, ~, ~)
@@ -176,17 +151,8 @@ classdef DeductionsController < element.Component
             splitvalue = str2double(splitvalue); %#ok<NASGU>
             
             % Pass information to model for further processing.
-            try
-                eval(sprintf("obj.Model.remove%sDeduction(splitvalue);", obj.TrackedProperty_))
-            catch exception
-                if strcmp(exception.identifier, "MATLAB:noSuchMethodOrField")
-                    error("DeductionsController:Remove:InvalidProperty", ...
-                        "Selected property does not have a remove method.")
-                else
-                    uialert(getRootFigure(obj.Parent), exception.message, ...
-                        sprintf("Caught Exception - %s", exception.identifier));
-                end
-            end
+            obj.evalErrorHandler(sprintf("obj.Model.remove%sDeduction(splitvalue);", obj.TrackedProperty_), ...
+                "method", getRootFigure(obj));
         end % onRemoveRowsOK
         
         function onRemoveEverythingOK(obj, ~, ~)
@@ -194,17 +160,8 @@ classdef DeductionsController < element.Component
             % deductions from finance model.
             
             % Pass information to model for further processing.
-            try
-                eval(sprintf("obj.Model.delete%sDeductions();", obj.TrackedProperty_))
-            catch exception
-                if strcmp(exception.identifier, "MATLAB:noSuchMethodOrField")
-                    error("DeductionsController:Remove:InvalidProperty", ...
-                        "Selected property does not have a remove method.")
-                else
-                    uialert(getRootFigure(obj.Parent), exception.message, ...
-                        sprintf("Caught Exception - %s", exception.identifier));
-                end
-            end
+            obj.evalErrorHandler(sprintf("obj.Model.delete%sDeductions();", obj.TrackedProperty_), ...
+                "method", getRootFigure(obj));
         end % onRemoveEverythingOK
         
     end % methods (Access = private)

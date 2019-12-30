@@ -88,16 +88,13 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
         % Inflection points in gross income for tax and National Insurance.
         InflectionValues = [0, 12500, 50000, 150000, 200000]
+        % Name of MAT file where current session is saved.
+        Session = getSessionFile()
         % Name of MAT file containing currency conversion values.
         CurrencyFile = getCurrencyFile()
         % Name of MAT file containing UK tax and National Insurance values.
         TaxNIFile = getTaxNIFile()
     end % properties (Constant)
-    
-    properties (Constant, Access = private)
-        % Name of MAT file where current session is saved.
-        Session = getSessionFile()
-    end % properties (Constant, Access = private)
     
     events
         % Event notifying update of finance model.

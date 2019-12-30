@@ -1,4 +1,4 @@
-classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
+classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & element.DialogHandler
     
     properties (Access = private)
         % Grid for deductions panel.
@@ -27,9 +27,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
         TaxNIEditField matlab.ui.control.EditField
         % Button for tax-NI update.
         TaxNIButton matlab.ui.control.Button
-        % Dialog app to set API key.
-        Dialog element.Handler = element.null.NullHandler
-    end
+    end % properties (Access = private)
     
     properties (Constant, Access = private)
         % Array of variables for import and export of MAT file.
@@ -261,7 +259,8 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
                     obj.Model.DeductPension = deductPension;
                     obj.Model.PensionContribution = pensionContribution;
                 else
-                    uialert(getRootFigure(obj.Parent), sprintf("MAT file for import must include the following variables: %s.", ...
+                    uialert(getRootFigure(obj), ...
+                        sprintf("MAT file for import must include the following variables: %s.", ...
                         strjoin(obj.ImportExportVariables, ", ")), "Invalid MAT File");
                 end
             end
@@ -290,17 +289,11 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             % ONCURRENCYAPI Internal function to ask user for API key to
             % fixer.io. Free account is required.
             
-            % Check that no other window is open.
-            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
-                % Ask user for API key and save it in MAT file.
-                obj.Dialog = element.window.CurrencyAPIHandler( ...
-                    "ParentPosition", getRootFigure(obj.Parent).Position, ...
-                    "OKFcn", @obj.onCurrencyOK);
-            else
-                uialert(getRootFigure(obj.Parent), ["A window of this kind is already open. ", ...
-                    "Please finish the previous operation before starting a new one."], ...
-                    "API Input Dialog Already Open", "Icon", "warning");
-            end
+            % Call UI dialog app.
+            obj.createDialog(getRootFigure(obj), ...
+                "element.window.CurrencyAPIHandler", ...
+                "ParentPosition", getRootFigure(obj).Position, ...
+                "OKFcn", @obj.onCurrencyOK);
         end % onCurrencyAPI
         
         function onCurrencyUpdate(obj)
@@ -329,12 +322,12 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
                         obj.Model.setCurrencyConversion(EUR2GBP, USD2GBP);
                     catch exception
                         if strcmp(exception.identifier, "MATLAB:webservices:ContentTypeReaderError")
-                            uialert(getRootFigure(obj.Parent), ...
+                            uialert(getRootFigure(obj), ...
                                 ["Input API key is not valid. Please download the current one from: ", ...
                                 "https://www.income-tax.co.uk/tax-calculator-api/"], ...
                                 "Invalid API Key");
                         else
-                            uialert(getRootFigure(obj.Parent), exception.message, ...
+                            uialert(getRootFigure(obj), exception.message, ...
                                 sprintf("Caught Exception - %s", exception.identifier));
                         end
                     end
@@ -349,18 +342,11 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
             % ONTAXNIUPDATE Internal function to update the tax-National
             % Insurance information based on the income-tax.co.uk APIs.
             
-            % Check that no other window is open.
-            if isempty(obj.Dialog) || ~isvalid(obj.Dialog) || ~obj.Dialog.IsValid
-                % Call UI dialog app to insert API key.
-                obj.Dialog = element.window.TaxAPIHandler( ...
-                    "ParentPosition", getRootFigure(obj.Parent).Position, ...
-                    "OKFcn", @obj.onTaxNIOK);
-            else
-                uialert(getRootFigure(obj.Parent), ["A window of this kind is already open. ", ...
-                    "Please finish the previous operation before starting a new one."], ...
-                    "API Input Dialog Already Open", "Icon", "warning");
-            end
-            
+            % Call UI dialog app.
+            obj.createDialog(getRootFigure(obj), ...
+                "element.window.TaxAPIHandler", ...
+                "ParentPosition", getRootFigure(obj).Position, ...
+                "OKFcn", @obj.onTaxNIOK);
         end % onTaxNIUpdate
         
     end % methods (Access = private)
@@ -399,12 +385,12 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel
                 obj.Model.loadTaxNIInformation();
             catch exception
                 if strcmp(exception.identifier, "MATLAB:webservices:ContentTypeReaderError")
-                    uialert(getRootFigure(obj.Parent), ...
+                    uialert(getRootFigure(obj), ...
                         ["Input API key is not valid. Please download the current one from: ", ...
                         "https://www.income-tax.co.uk/tax-calculator-api/"], ...
                         "Invalid API Key");
                 else
-                    uialert(getRootFigure(obj.Parent), exception.message, ...
+                    uialert(getRootFigure(obj), exception.message, ...
                         sprintf("Caught Exception - %s", exception.identifier));
                 end
             end

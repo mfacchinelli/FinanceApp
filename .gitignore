@@ -1,9 +1,10 @@
 resources/*
 IncomeFinanceApp/*
 IncomeFinanceApp_resources/*
+IncomeFinanceApp.prj
+deployAsApp.m
 **/*.MATLABDriveTag
 **/*.DS_Store
 **/*.m~
 **/*.mat
-**/*.prj
 **/*.png
