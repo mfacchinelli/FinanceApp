@@ -339,6 +339,9 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.YearlyGrossIncome = grossIncome;
             obj.PreTax = preTaxDeductions;
             obj.PostTax = postTaxDeductions;
+            
+            % Update finances.
+            obj.update();
         end % setFromImport
         
         function [grossIncome, preTaxDeductions, postTaxDeductions] = getForExport(obj)

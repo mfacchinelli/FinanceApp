@@ -13,7 +13,7 @@ classdef (Abstract, Hidden) ComponentWithListenerPanel < element.ComponentWithLi
             f = uifigure("Visible", "off", "HandleVisibility", "off");
             obj.Main = uipanel("Parent", f);
             obj.Main.Parent = [];
-            f.delete();
+            f.delete(); clear("f");
         end % constructor
         
     end % methods

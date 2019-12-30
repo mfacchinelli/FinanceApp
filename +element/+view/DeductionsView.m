@@ -5,6 +5,11 @@ classdef (Sealed) DeductionsView < element.ComponentWithListener
         TrackedProperty string = string.empty()
     end % properties
     
+    properties (SetAccess = private)
+        % Indices of selected cells.
+        SelectedCells (:, 2) double = NaN
+    end % properties (SetAccess = private)
+    
     properties (Dependent)
         % Array defining whether table columns are editable.
         ColumnEditable (1, :) logical
@@ -21,6 +26,10 @@ classdef (Sealed) DeductionsView < element.ComponentWithListener
             % Set UI table to default and set parent to grid.
             % Main - Table showing finance deductions.
             obj.Main = getEmptyDeductionUITable();
+            
+            % Set selection callback.
+            obj.Main.CellSelectionCallback = ...
+                @(~, event) set(obj, "SelectedCells", event.Indices);
             
             % Set properties.
             set(obj, varargin{:})
@@ -101,5 +110,6 @@ t = getEmptyDeductionTable();
 f = uifigure("Visible", "off", "HandleVisibility", "off");
 u = uitable("Parent", f, "Data", t);
 u.Parent = [];
+f.delete(); clear("f");
 
 end

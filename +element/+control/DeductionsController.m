@@ -37,7 +37,12 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                 "Text", "Remove...");
             
             obj.Menus(3) = uimenu(obj.Menus(2), ...
+                "Text", "Selection", ...
+                "MenuSelectedFcn", @obj.onRemoveSelection);
+            
+            obj.Menus(3) = uimenu(obj.Menus(2), ...
                 "Text", "Rows", ...
+                "Separator", "on", ...
                 "MenuSelectedFcn", @obj.onRemoveRows);
             
             obj.Menus(4) = uimenu(obj.Menus(2), ...
@@ -89,6 +94,33 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                 "ParentPosition", getRootFigure(obj).Position, ...
                 "OKFcn", @obj.onAddOK);
         end % onAdd
+        
+        function onRemoveSelection(obj, ~, ~)
+            % ONREMOVESELECTION Internal function to remove selected row
+            % from finance model.
+            
+            % Retrieve views from main app.
+            views = getRootFigure(obj).RunningAppInstance.Views;
+            
+            % Retrieve needed view.
+            for v = views(:)'
+                if isa(v, "element.view.DeductionsView")
+                    if strcmp(v.TrackedProperty, obj.TrackedProperty_)
+                        % Retrieve selected row.
+                        selectedRows = v.SelectedCells(:, 1);
+                    end
+                end
+            end
+            
+            % Pass information to model for further processing.
+            if ~any(isnan(selectedRows))
+                obj.evalErrorHandler(sprintf("obj.Model.remove%sDeduction(selectedRows);", obj.TrackedProperty_), ...
+                    "method", getRootFigure(obj));
+            else
+                uialert(getRootFigure(obj), "You must select at least one cell before using this feature.", ...
+                    "No Cell Selected", "Icon", "warning");
+            end
+        end % onRemoveSelection
         
         function onRemoveRows(obj, ~, ~)
             % ONREMOVEROWS Internal function to remove specific deductions
