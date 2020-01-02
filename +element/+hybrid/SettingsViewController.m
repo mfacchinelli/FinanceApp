@@ -29,12 +29,6 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
         TaxNIButton matlab.ui.control.Button
     end % properties (Access = private)
     
-    properties (Constant, Access = private)
-        % Array of variables for import and export of MAT file.
-        ImportExportVariables = ["grossIncome", "preTaxDeductions", ...
-            "postTaxDeductions", "deductPension", "pensionContribution"]
-    end % properties (Constant, Access = private)
-    
     methods
         
         function obj = SettingsViewController(model, varargin)
@@ -248,11 +242,11 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % Check that a file has been selected.
             if ~isequal(fileName, 0) && ~isequal(pathName, 0)
                 % Load file.
-                load(fullfile(pathName, fileName), obj.ImportExportVariables{:});
+                load(fullfile(pathName, fileName), obj.Model.ImportExportVariables{:});
                 
                 % Make sure that variables are not empty.
                 checkExistence = arrayfun(@(i) evalin("caller", sprintf("exist('%s', 'var')", ...
-                    obj.ImportExportVariables(i))), 1:numel(obj.ImportExportVariables));
+                    obj.Model.ImportExportVariables(i))), 1:numel(obj.Model.ImportExportVariables));
                 if all(checkExistence)
                     % Set variables in model.
                     obj.Model.setFromImport(grossIncome, preTaxDeductions, postTaxDeductions);
@@ -261,7 +255,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                 else
                     uialert(getRootFigure(obj), ...
                         sprintf("MAT file for import must include the following variables: %s.", ...
-                        strjoin(obj.ImportExportVariables, ", ")), "Invalid MAT File");
+                        strjoin(obj.Model.ImportExportVariables, ", ")), "Invalid MAT File");
                 end
             end
         end % onImport
@@ -281,7 +275,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                 pensionContribution = obj.Model.PensionContribution; %#ok<NASGU>
                 
                 % Save variables to file.
-                save(fullfile(pathName, fileName), obj.ImportExportVariables{:});
+                save(fullfile(pathName, fileName), obj.Model.ImportExportVariables{:});
             end
         end % onExport
         
