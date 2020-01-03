@@ -19,10 +19,10 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
         ImportButton matlab.ui.control.Button
         % Button for export of deductions file.
         ExportButton matlab.ui.control.Button
-        % Button for update of API key for fixer.io.
-        CurrencyAPIButton matlab.ui.control.Button
+        % Edit field for currency conversion last update.
+        CurrencyEditField matlab.ui.control.EditField
         % Button for currency conversion update.
-        CurrencyUpdateButton matlab.ui.control.Button
+        CurrencyButton matlab.ui.control.Button
         % Edit field for tax-NI last update.
         TaxNIEditField matlab.ui.control.EditField
         % Button for tax-NI update.
@@ -66,7 +66,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                 "RowHeight", ["1x", "1x", "1x"]);
             
             obj.CurrencyGrid = uigridlayout(currencyPanel, ...
-                "ColumnWidth", ["1x", "1x"], ...
+                "ColumnWidth", ["1x", "1x", "1x"], ...
                 "RowHeight", "1x");
             
             obj.TaxNIGrid = uigridlayout(taxNIPanel, ...
@@ -181,19 +181,26 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             obj.ExportButton.Layout.Row = 3;
             obj.ExportButton.Layout.Column = [3, 4];
             
-            % Create import button.
-            obj.CurrencyAPIButton = uibutton(obj.CurrencyGrid, "push", ...
-                "Text", "Set API for fixer.io", ...
-                "ButtonPushedFcn", @(~, ~) onCurrencyAPI(obj));
-            obj.CurrencyAPIButton.Layout.Row = 1;
-            obj.CurrencyAPIButton.Layout.Column = 1;
+            % Create label for currency edit field.
+            currencyLabel = uilabel(obj.CurrencyGrid, ...
+                "Text", "Last currency data update:", ...
+                "HorizontalAlignment", "right");
+            currencyLabel.Layout.Row = 1;
+            currencyLabel.Layout.Column = 1;
             
-            % Create export button.
-            obj.CurrencyUpdateButton = uibutton(obj.CurrencyGrid, "push", ...
+            % Create currency edit field.
+            obj.CurrencyEditField = uieditfield(obj.CurrencyGrid, "text", ...
+                "Value", "NaT", ...
+                "Editable", "off");
+            obj.CurrencyEditField.Layout.Row = 1;
+            obj.CurrencyEditField.Layout.Column = 2;
+            
+            % Create currency button.
+            obj.CurrencyButton = uibutton(obj.CurrencyGrid, "push", ...
                 "Text", "Update", ...
                 "ButtonPushedFcn", @(~, ~) onCurrencyUpdate(obj));
-            obj.CurrencyUpdateButton.Layout.Row = 1;
-            obj.CurrencyUpdateButton.Layout.Column = 2;
+            obj.CurrencyButton.Layout.Row = 1;
+            obj.CurrencyButton.Layout.Column = 3;
             
             % Create label for tax-NI edit field.
             taxNILabel = uilabel(obj.TaxNIGrid, ...
@@ -249,9 +256,9 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                     obj.Model.ImportExportVariables(i))), 1:numel(obj.Model.ImportExportVariables));
                 if all(checkExistence)
                     % Set variables in model.
-                    obj.Model.setFromImport(grossIncome, preTaxDeductions, postTaxDeductions);
-                    obj.Model.DeductPension = deductPension;
-                    obj.Model.PensionContribution = pensionContribution;
+                    obj.Model.setFromImport(YearlyGrossIncome, PreTaxVoluntary, PostTax);
+                    obj.Model.DeductPension = DeductPension;
+                    obj.Model.PensionContribution = PensionContribution;
                 else
                     uialert(getRootFigure(obj), ...
                         sprintf("MAT file for import must include the following variables: %s.", ...
@@ -279,17 +286,6 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             end
         end % onExport
         
-        function onCurrencyAPI(obj)
-            % ONCURRENCYAPI Internal function to ask user for API key to
-            % fixer.io. Free account is required.
-            
-            % Call UI dialog app.
-            obj.createDialog(getRootFigure(obj), ...
-                "element.window.CurrencyAPIHandler", ...
-                "ParentPosition", getRootFigure(obj).Position, ...
-                "OKFcn", @obj.onCurrencyOK);
-        end % onCurrencyAPI
-        
         function onCurrencyUpdate(obj)
             % ONCURRENCYUPDATE Internal function to download currency
             % conversion information from fixer.io.
@@ -297,7 +293,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % Check for MAT file containing currency API key.
             if exist(obj.Model.CurrencyFile, "file")
                 % Load API key.
-                load(obj.Model.CurrencyFile, "APIKey");
+                load(obj.Model.CurrencyFile, "APIKey", "updateDate");
                 
                 % Check that API key is not empty and valid.
                 if isempty(APIKey) || ~(isstring(APIKey) || ischar(APIKey))
@@ -305,7 +301,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                     obj.Dialog.delete();
                     
                     % Reset API key.
-                    obj.onCurrencyAPI();
+                    obj.setCurrencyAPI();
                 else
                     % Try downloading data.
                     try
@@ -314,6 +310,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                         
                         % Store values.
                         obj.Model.setCurrencyConversion(EUR2GBP, USD2GBP);
+                        obj.CurrencyEditField.Value = datestr(updateDate, "dd mmmm yyyy");
                     catch exception
                         if strcmp(exception.identifier, "MATLAB:webservices:ContentTypeReaderError")
                             uialert(getRootFigure(obj), ...
@@ -328,7 +325,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                 end
             else
                 % Set API key.
-                obj.onCurrencyAPI();
+                obj.setCurrencyAPI();
             end
         end % onCurrencyUpdate
         
@@ -347,14 +344,28 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
     
     methods (Access = private)
         
+        function setCurrencyAPI(obj)
+            % SETCURRENCYAPI Internal function to ask user for API key to
+            % fixer.io. Free account is required.
+            
+            % Call UI dialog app.
+            obj.createDialog(getRootFigure(obj), ...
+                "element.window.CurrencyAPIHandler", ...
+                "ParentPosition", getRootFigure(obj).Position, ...
+                "OKFcn", @obj.onCurrencyOK);
+        end % setCurrencyAPI
+        
         function onCurrencyOK(obj, ~, ~)
             % ONCURRENCYOK Internal function to store API key to MAT file.
             
             % Retrieve value.
             APIKey = obj.Dialog.EditFieldValue;
             
+            % Set last update date.
+            updateDate = datetime("today");
+            
             % Save value to MAT file.
-            save(obj.Model.CurrencyFile, "APIKey");
+            save(obj.Model.CurrencyFile, "APIKey", "updateDate");
             
             % Call function to download currency conversions.
             obj.onCurrencyUpdate();
