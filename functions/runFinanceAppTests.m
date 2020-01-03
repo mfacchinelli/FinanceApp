@@ -10,7 +10,7 @@ testSuite = TestSuite.fromPackage("tests");
 
 % Add test runner for code coverage.
 runner = TestRunner.withTextOutput;
-runner.addPlugin(CodeCoveragePlugin.forFolder(pwd))
+runner.addPlugin(CodeCoveragePlugin.forFolder(pwd));
 
 % Run tests.
 testResults = runner.run(testSuite);

@@ -1,7 +1,7 @@
-function [testResults] = startproj
+function startproj
 %% Run Tests
 
 % Run tests and check code coverage.
-testResults = runFinanceAppTests();
+runFinanceAppTests();
 
 end

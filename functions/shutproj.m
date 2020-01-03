@@ -1,7 +1,7 @@
-function [testResults] = shutproj
+function shutproj
 %% Run Tests
 
 % Run tests and check code coverage.
-testResults = runFinanceAppTests();
+runFinanceAppTests();
 
 end
