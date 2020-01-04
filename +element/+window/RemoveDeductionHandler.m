@@ -1,16 +1,16 @@
-classdef (Sealed) TaxAPIHandler < element.EditFieldHandler
+classdef (Sealed) RemoveDeductionHandler < element.EditFieldHandler
     
     methods
         
-        function obj = TaxAPIHandler(varargin)
+        function obj = RemoveDeductionHandler(varargin)
             % Call superclass constructor.
-            obj@element.EditFieldHandler();
+            obj@element.EditFieldHandler()
             
-            % Set figure properties.
-            obj.UIFigure.Name = "Set Income Tax API Key";
-            obj.Label.Text = ["Please enter the API key to download new tax and", ...
-                        "National Insurance information, available from:"];
-            obj.EditField.Value = "https://www.income-tax.co.uk/tax-calculator-api/";
+            % Set label values.
+            obj.UIFigure.Name = "Remove Deduction";
+            obj.Label.Text = ["Please enter row number(s) to delete. Multiple ", ...
+                "row numbers must be separated by semicolons."];
+            obj.EditField.Value = "1; 3";
             
             % Set properties.
             set(obj, varargin{:})
@@ -46,7 +46,7 @@ classdef (Sealed) TaxAPIHandler < element.EditFieldHandler
             % Set CancelButton position.
             obj.CancelButton.Layout.Row = 3;
             obj.CancelButton.Layout.Column = 3;
-        end % setLayout
+        end % createComponents
         
     end % methods (Access = protected)
     

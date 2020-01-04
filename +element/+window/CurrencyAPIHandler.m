@@ -1,10 +1,10 @@
-classdef (Sealed) CurrencyAPIHandler < element.InputHandler
+classdef (Sealed) CurrencyAPIHandler < element.EditFieldHandler
     
     methods
         
         function obj = CurrencyAPIHandler(varargin)
             % Call superclass constructor.
-            obj@element.InputHandler();
+            obj@element.EditFieldHandler();
             
             % Set figure properties.
             obj.UIFigure.Name = "Set Currency API Key";

@@ -61,6 +61,9 @@ classdef (Abstract, Hidden) Component < element.Element
                 case "method"
                     identifier = "MATLAB:noSuchMethodOrField";
                     message = "Selected class method does not exist.";
+                case "api"
+                    identifier = "MATLAB:webservices:ContentTypeReaderError";
+                    message = "Input API key is not valid.";
                 otherwise
                     error("MATLAB:EvalErrorHandler:InvalidType", ...
                         "Selected type '%s' does not exist.", type)
@@ -71,7 +74,11 @@ classdef (Abstract, Hidden) Component < element.Element
                 evalin("caller", command);
             catch exception
                 if strcmp(exception.identifier, identifier)
-                    error("MATLAB:EvalErrorHandler:InvalidCommand", message)
+                    if nargin == 3
+                        uialert(rootFigure, message, sprintf("Caught Exception - %s", identifier));
+                    else
+                        error("MATLAB:EvalErrorHandler:InvalidCommand", message)
+                    end
                 else
                     if nargin == 3
                         uialert(rootFigure, exception.message, ...

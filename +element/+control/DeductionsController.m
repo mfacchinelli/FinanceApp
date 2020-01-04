@@ -89,8 +89,9 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             
             % Call UI dialog app.
             obj.createDialog(getRootFigure(obj.Parent), ...
-                "element.window.DeductionsHandler", ...
-                "Mode", "add", ...
+                "element.window.AddDeductionHandler", ...
+                "AllowedCurrencies", obj.Model.AllowedCurrencies, ...
+                "AllowedRecurrence", obj.Model.AllowedRecurrence, ...
                 "ParentPosition", getRootFigure(obj).Position, ...
                 "OKFcn", @obj.onAddOK);
         end % onAdd
@@ -128,8 +129,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             
             % Call UI dialog app.
             obj.createDialog(getRootFigure(obj.Parent), ...
-                "element.window.DeductionsHandler", ...
-                "Mode", "remove", ...
+                "element.window.RemoveDeductionHandler", ...
                 "ParentPosition", getRootFigure(obj).Position, ...
                 "OKFcn", @obj.onRemoveRowsOK);
         end % onRemoveRows
@@ -151,7 +151,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             % ONADDOK Internal function to add deduction to finance model.
             
             % Retrieve edit field value.
-            value = obj.Dialog.EditFieldValue;
+            value = obj.Dialog.InputValue;
             
             % Split and check value at semicolons.
             splitvalue = strip(strsplit(value, ";"));
@@ -172,7 +172,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             % finance model.
             
             % Retrieve edit field value.
-            value = obj.Dialog.EditFieldValue;
+            value = obj.Dialog.InputValue;
             
             % Split and check value at semicolons.
             splitvalue = strip(strsplit(value, ";"));

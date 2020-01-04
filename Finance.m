@@ -46,10 +46,21 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         PreTaxVoluntary table = getEmptyDeductionTable()
         % Table of post-tax deductions.
         PostTax table = getEmptyDeductionTable()
+        % API key to download currency conversion information from
+        % fixer.io.
+        CurrencyAPI string = string.empty()
         % Conversion from GBP to EUR.
         EUR2GBP double = 0.85
         % Conversion from GBP to USD.
         USD2GBP double = 0.75
+        % Date denoting last time the currency information was updated.
+        CurrencyUpdate datetime = NaT
+        % Matrix containing tax and National Insurance values as a function
+        % of gross income.
+        TaxNIMatrix double = [0, 0, 0; 12500, 0, 464; 50000, 7500, 4964; 150000, 52500, 6964; 200000, 75000, 7964]
+        % Date denoting last time the tax and National Insurance
+        % information was updated.
+        TaxNIUpdate datetime = NaT
     end % properties (SetAccess = private)
     
     properties (Dependent, SetAccess = private)
@@ -70,16 +81,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         YearlyNetIncome double
         % Private value of tax and National Insurance.
         YearlyTaxNI double
-        % Matrix containing tax and National Insurance values as a function
-        % of gross income.
-        TaxNIMatrix double
     end % properties (Access = private)
-    
-    properties (Access = ?element.hybrid.SettingsViewController)
-        % Date denoting last time the tax and National Insurance
-        % information was updated.
-        TaxNIUpdate datetime
-    end % properties (Access = ?element.hybrid.SettingsViewController)
     
     properties (Constant)
         % Values of allowed currencies.
@@ -110,9 +112,6 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     methods
         
         function obj = Finance(varargin)
-            % Set tax-NI information.
-            obj.loadTaxNIInformation();
-            
             % Load previous session.
             obj.load();
             
@@ -333,6 +332,40 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.update();
         end % deletePostTaxDeductions
         
+        function downloadCurrencyConversion(obj, CurrencyAPI)
+            % DOWNLOADCURRENCYCONVERSION Function to download currency
+            % conversion information from fixer.io.
+            
+            % Download and store updated currency conversions.
+            [EUR2GBP, USD2GBP, CurrencyUpdate] = currency.downloadConversions(CurrencyAPI); %#ok<PROPLC>
+            
+            % Show and store latest update date.
+            save(obj.CurrencyFile, "CurrencyAPI", "EUR2GBP", "USD2GBP", "CurrencyUpdate");
+            
+            % Invoke load function for MAT file.
+            obj.loadCurrency();
+            
+            % Update finances.
+            obj.update();
+        end % downloadCurrencyConversion
+        
+        function downloadTaxNationalInsurance(obj, TaxNIAPI)
+            % DOWNLOADTAXNATIONALINSURANCE Function to download tax and
+            % National Insurance information from income-tax.co.uk.
+            
+            % Download new tax and National Insurance information.
+            [TaxNIMatrix, TaxNIUpdate] = taxni.downloadTaxNI(TaxNIAPI, obj.InflectionValues); %#ok<PROPLC>
+            
+            % Save values to MAT file.
+            save(obj.TaxNIFile, "TaxNIMatrix", "TaxNIUpdate");
+            
+            % Invoke load function for MAT file.
+            obj.loadTaxNI();
+            
+            % Update finances.
+            obj.update();
+        end % downloadTaxNationalInsurance
+        
     end % methods (Access = public)
     
     methods (Access = ?element.hybrid.SettingsViewController)
@@ -360,37 +393,6 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             postTaxDeductions = obj.PostTax;
         end % setFromImport
         
-        function setCurrencyConversion(obj, EUR2GBP, USD2GBP)
-            % SETCURRENCYCONVERSION Function to set values of conversion
-            % for currencies (EUR and USD) to GBP.
-            
-            % Store values.
-            obj.EUR2GBP = EUR2GBP;
-            obj.USD2GBP = USD2GBP;
-            
-            % Update finance.
-            obj.update();
-        end
-        
-        function loadTaxNIInformation(obj)
-            % LOADTAXNIINFORMATION Function to load tax and National
-            % Insurance information from MAT file.
-            
-            % Load MAT file.
-            load(obj.TaxNIFile, "taxNIMatrix", "updateDate");
-            
-            % Store values.
-            obj.TaxNIMatrix = taxNIMatrix;
-            obj.TaxNIUpdate = updateDate;
-            
-            % Determine values of minumum and maximum of tabulated values.
-            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
-            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
-            
-            % Update finance.
-            obj.update();
-        end % loadTaxNIInformation
-        
     end % methods (Access = ?element.hybrid.SettingsViewController)
     
     methods (Access = private)
@@ -416,6 +418,10 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % app loads a MAT file containing the gross income value and
             % the voluntary pre-tax and post-tax deductions.
             
+            % Set currency and tax-NI information.
+            obj.loadCurrency();
+            obj.loadTaxNI();
+            
             % Check that MAT file exists.
             if exist(obj.Session, "file")
                 % Load MAT file.
@@ -427,6 +433,57 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
                 obj.PensionContribution = PensionContribution; %#ok<CPROP>
             end
         end % load
+        
+        function loadCurrency(obj)
+            % LOADCURRENCY Function to load currency conversion information
+            % from MAT file.
+            
+            % Check that MAT file exists.
+            if exist(obj.CurrencyFile, "file")
+                % Load MAT file.
+                load(obj.CurrencyFile, "CurrencyAPI", "EUR2GBP", "USD2GBP", "CurrencyUpdate");
+                
+                % Store values.
+                obj.CurrencyAPI = CurrencyAPI; %#ok<PROP>
+                obj.EUR2GBP = EUR2GBP; %#ok<PROP>
+                obj.USD2GBP = USD2GBP; %#ok<PROP>
+                obj.CurrencyUpdate = CurrencyUpdate; %#ok<PROP>
+            else
+                % Give default values.
+                [obj.CurrencyAPI, obj.EUR2GBP, obj.USD2GBP, obj.CurrencyUpdate] = getCurrencyDefaults();
+                
+                % Save defaults.
+                saveStruct = struct("CurrencyAPI", obj.CurrencyAPI, "EUR2GBP", obj.EUR2GBP, ...
+                    "USD2GBP", obj.USD2GBP, "CurrencyUpdate", obj.CurrencyUpdate);
+                save(obj.CurrencyFile, "-struct", "saveStruct");
+            end
+        end % loadCurrency
+        
+        function loadTaxNI(obj)
+            % LOADTAXNI Function to load tax and National Insurance
+            % information from MAT file.
+            
+            % Check that MAT file exists.
+            if exist(obj.TaxNIFile, "file")
+                % Load MAT file.
+                load(obj.TaxNIFile, "TaxNIMatrix", "TaxNIUpdate");
+                
+                % Store values.
+                obj.TaxNIMatrix = TaxNIMatrix; %#ok<PROP>
+                obj.TaxNIUpdate = TaxNIUpdate; %#ok<PROP>
+            else
+                % Give default values.
+                [obj.TaxNIMatrix, obj.TaxNIUpdate] = getTaxNIDefaults();
+                
+                % Save defaults.
+                saveStruct = struct("TaxNIMatrix", obj.TaxNIMatrix, "TaxNIUpdate", obj.TaxNIUpdate);
+                save(obj.TaxNIFile, "-struct", "saveStruct");
+            end
+            
+            % Determine values of minumum and maximum of tabulated values.
+            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
+            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
+        end % loadTaxNI
         
         function save(obj)
             % SAVE Internal function to save current session of app. The
@@ -624,6 +681,19 @@ end
 
 end % getSessionFile
 
+function currencyFile = getCurrencyFile()
+% GETCURRENCYFILE Function to return the file where the currency API key
+% for fixer.io is stored.
+
+% Get currency information.
+if ismcc || isdeployed
+    currencyFile = which("currencyAPI.mat");
+else
+    currencyFile = fullfile("cache", "currencyAPI.mat");
+end
+
+end % getCurrencyFile
+
 function taxNIFile = getTaxNIFile()
 % GETTAXNIFILE Function to return the tax-NI file downloaded using
 % income-tax.co.uk APIs.
@@ -637,15 +707,22 @@ end
 
 end % getTaxNIFile
 
-function currencyFile = getCurrencyFile()
-% GETCURRENCYFILE Function to return the file where the currency API key
-% for fixer.io is stored.
+function [CurrencyAPI, EUR2GBP, USD2GBP, CurrencyUpdate] = getCurrencyDefaults()
+% GETCURRENCYDEFAULTS Function to return default values of currency
+% conversion information.
 
-% Get currency information.
-if ismcc || isdeployed
-    currencyFile = which("currencyAPI.mat");
-else
-    currencyFile = fullfile("cache", "currencyAPI.mat");
-end
+CurrencyAPI = string.empty();
+EUR2GBP = 0.85;
+USD2GBP = 0.75;
+CurrencyUpdate = NaT;
 
-end % getCurrencyFile
+end % getCurrencyDefaults
+
+function [TaxNIMatrix, TaxNIUpdate] = getTaxNIDefaults()
+% GETTAXNIDEFAULTS Function to return default values of tax and National
+% Insurance information.
+
+TaxNIMatrix = [0, 0, 0; 12500, 0, 464; 50000, 7500, 4964; 150000, 52500, 6964; 200000, 75000, 7964];
+TaxNIUpdate = NaT;
+
+end % getTaxNIDefaults
