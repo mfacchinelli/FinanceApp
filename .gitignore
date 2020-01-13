@@ -1,9 +1,9 @@
 resources/*
+deploy/*
 @datetime/*
 IncomeFinanceApp/*
 IncomeFinanceApp_resources/*
 IncomeFinanceApp.prj
-deployAsApp.m
 **/*.MATLABDriveTag
 **/*.DS_Store
 **/*.m~
