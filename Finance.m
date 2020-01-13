@@ -89,7 +89,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         % Values of allowed recurrence.
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
         % Inflection points in gross income for tax and National Insurance.
-        InflectionValues = [0, 12500, 50000, 150000, 200000]
+        InflectionValues = [0, 12500, 50000, 100000, 150000, 200000]
         % Name of MAT file where current session is saved.
         Session = getSessionFile()
         % Name of MAT file containing currency conversion values.
@@ -127,7 +127,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
         function delete(obj)
             % Save current session.
-            obj.save();
+            obj.cache();
         end % destructor
         
         function set.GrossIncome(obj, value)
@@ -337,10 +337,10 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % conversion information from fixer.io.
             
             % Download and store updated currency conversions.
-            [EUR2GBP, USD2GBP, CurrencyUpdate] = currency.downloadConversions(CurrencyAPI); %#ok<PROPLC>
+            [EUR2GBP, USD2GBP, CurrencyUpdate] = currency.downloadConversions(CurrencyAPI); %#ok<ASGLU,PROPLC>
             
             % Show and store latest update date.
-            save(obj.CurrencyFile, "CurrencyAPI", "EUR2GBP", "USD2GBP", "CurrencyUpdate");
+            obj.save(obj.CurrencyFile, "CurrencyAPI", "EUR2GBP", "USD2GBP", "CurrencyUpdate");
             
             % Invoke load function for MAT file.
             obj.loadCurrency();
@@ -354,10 +354,10 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % National Insurance information from income-tax.co.uk.
             
             % Download new tax and National Insurance information.
-            [TaxNIMatrix, TaxNIUpdate] = taxni.downloadTaxNI(TaxNIAPI, obj.InflectionValues); %#ok<PROPLC>
+            [TaxNIMatrix, TaxNIUpdate] = taxni.downloadTaxNI(TaxNIAPI, obj.InflectionValues); %#ok<ASGLU,PROPLC>
             
             % Save values to MAT file.
-            save(obj.TaxNIFile, "TaxNIMatrix", "TaxNIUpdate");
+            obj.save(obj.TaxNIFile, "TaxNIMatrix", "TaxNIUpdate");
             
             % Invoke load function for MAT file.
             obj.loadTaxNI();
@@ -454,8 +454,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
                 
                 % Save defaults.
                 saveStruct = struct("CurrencyAPI", obj.CurrencyAPI, "EUR2GBP", obj.EUR2GBP, ...
-                    "USD2GBP", obj.USD2GBP, "CurrencyUpdate", obj.CurrencyUpdate);
-                save(obj.CurrencyFile, "-struct", "saveStruct");
+                    "USD2GBP", obj.USD2GBP, "CurrencyUpdate", obj.CurrencyUpdate); %#ok<NASGU>
+                obj.save(obj.CurrencyFile, "-struct", "saveStruct");
             end
         end % loadCurrency
         
@@ -476,8 +476,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
                 [obj.TaxNIMatrix, obj.TaxNIUpdate] = getTaxNIDefaults();
                 
                 % Save defaults.
-                saveStruct = struct("TaxNIMatrix", obj.TaxNIMatrix, "TaxNIUpdate", obj.TaxNIUpdate);
-                save(obj.TaxNIFile, "-struct", "saveStruct");
+                saveStruct = struct("TaxNIMatrix", obj.TaxNIMatrix, "TaxNIUpdate", obj.TaxNIUpdate); %#ok<NASGU>
+                obj.save(obj.TaxNIFile, "-struct", "saveStruct");
             end
             
             % Determine values of minumum and maximum of tabulated values.
@@ -485,15 +485,10 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.MaxYearlyIncome = max(obj.InflectionValues);
         end % loadTaxNI
         
-        function save(obj)
-            % SAVE Internal function to save current session of app. The
+        function cache(obj)
+            % CACHE Internal function to save current session of app. The
             % app saves a MAT file containing the gross income value and
             % the voluntary pre-tax and post-tax deductions.
-            
-            % Check that cache folder exists.
-            if ~(ismcc || isdeployed) && ~exist(fileparts(obj.Session), "dir")
-                mkdir(fileparts(obj.Session))
-            end
             
             % Retrieve values.
             [YearlyGrossIncome, PreTaxVoluntary, PostTax] = obj.getForExport(); %#ok<ASGLU,PROP>
@@ -501,8 +496,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             PensionContribution = obj.PensionContribution; %#ok<NASGU,PROP>
             
             % Save MAT file.
-            save(obj.Session, obj.ImportExportVariables{:});
-        end % save
+            obj.save(obj.Session, obj.ImportExportVariables{:});
+        end % cache
         
         function update(obj)
             % UPDATE Internal function to update values of income based
@@ -593,6 +588,22 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     end % methods (Access = private)
     
     methods (Static, Access = private)
+        
+        function save(filename, varargin)
+            % SAVE Internal function to call built-in 'save' function with
+            % specified inputs and options. This function differs from
+            % built-in one, in that it creates the save folder if it does
+            % not exist.
+            
+            % Check that folder exists.
+            if ~(ismcc || isdeployed) && ~exist(fileparts(filename), "dir")
+                mkdir(fileparts(filename))
+            end
+            
+            % Call built-in save function.
+            evalin("caller", sprintf("save(""%s"", %s)", filename, ...
+                strjoin(cellfun(@(x) '"' + string(x) + '"', varargin), ", ")))
+        end % save
         
         function value = convertCurrency(operator, currency, value, EUR2GBP, USD2GBP)
             % CONVERTCURRENCY Convert currency with respect to GBP, based
@@ -722,7 +733,7 @@ function [TaxNIMatrix, TaxNIUpdate] = getTaxNIDefaults()
 % GETTAXNIDEFAULTS Function to return default values of tax and National
 % Insurance information.
 
-TaxNIMatrix = [0, 0; 0, 464; 7500, 4964; 52500, 6964; 75000, 7964];
+TaxNIMatrix = [0, 0; 0, 464; 7500, 4964; 27500, 5964; 52500, 6964; 75000, 7964];
 TaxNIUpdate = NaT;
 
 end % getTaxNIDefaults
