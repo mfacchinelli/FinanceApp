@@ -14,7 +14,7 @@ end
 url = sprintf("https://www.income-tax.co.uk/api/%s/%%d/", APIKey);
 
 % Pre-allocate output.
-taxNIMatrix = zeros(numel(income), 3);
+taxNIMatrix = zeros(numel(income), 2);
 
 % Create 'weboptions' object.
 options = weboptions("Timeout", 5, "CharacterEncoding", "UTF-8", "ContentType", "json");
@@ -26,11 +26,11 @@ for i = 1:numel(income)
     
     % Store results.
     if ~isempty(result)
-        taxNIMatrix(i, :) = [income(i), ...
+        taxNIMatrix(i, :) = [ ...
             str2double(result.tax.yearly), ...
             str2double(result.ni.yearly)];
     else
-        taxNIMatrix(i, :) = zeros(1, 3);
+        taxNIMatrix(i, :) = zeros(1, 2);
     end
 end
 

@@ -57,7 +57,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         CurrencyUpdate datetime = NaT
         % Matrix containing tax and National Insurance values as a function
         % of gross income.
-        TaxNIMatrix double = [0, 0, 0; 12500, 0, 464; 50000, 7500, 4964; 150000, 52500, 6964; 200000, 75000, 7964]
+        TaxNIMatrix double = getTaxNIDefaults()
         % Date denoting last time the tax and National Insurance
         % information was updated.
         TaxNIUpdate datetime = NaT
@@ -310,8 +310,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.update();
         end % removePostTaxDeduction
         
-        function deletePreTaxDeductions(obj)
-            % DELETEPRETAXDEDUCTIONS Delete all pre-tax voluntary
+        function deletePreTaxVoluntaryDeductions(obj)
+            % DELETEPRETAXVOLUNTARYDEDUCTIONS Delete all pre-tax voluntary
             % deductions.
             
             % Empty table of pre-tax deductions.
@@ -319,7 +319,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             
             % Update finances.
             obj.update();
-        end % deletePreTaxDeductions
+        end % deletePreTaxVoluntaryDeductions
         
         function deletePostTaxDeductions(obj)
             % DELETEPOSTTAXDEDUCTIONS Delete all post-tax voluntary
@@ -481,8 +481,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             end
             
             % Determine values of minumum and maximum of tabulated values.
-            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
-            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
+            obj.MinYearlyIncome = min(obj.InflectionValues);
+            obj.MaxYearlyIncome = max(obj.InflectionValues);
         end % loadTaxNI
         
         function save(obj)
@@ -546,7 +546,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             end
             
             % Retrieve tax-NI information for current gross income.
-            obj.YearlyTaxNI = interp1(obj.TaxNIMatrix(:, 1), obj.TaxNIMatrix(:, 2:3), netIncome, "linear", NaN);
+            obj.YearlyTaxNI = interp1(obj.InflectionValues, obj.TaxNIMatrix, netIncome, "linear", NaN);
             
             % Subtract tax and National Insurance, as last pre-tax deductions.
             netIncome = netIncome - sum(obj.YearlyTaxNI);
@@ -722,7 +722,7 @@ function [TaxNIMatrix, TaxNIUpdate] = getTaxNIDefaults()
 % GETTAXNIDEFAULTS Function to return default values of tax and National
 % Insurance information.
 
-TaxNIMatrix = [0, 0, 0; 12500, 0, 464; 50000, 7500, 4964; 150000, 52500, 6964; 200000, 75000, 7964];
+TaxNIMatrix = [0, 0; 0, 464; 7500, 4964; 52500, 6964; 75000, 7964];
 TaxNIUpdate = NaT;
 
 end % getTaxNIDefaults
