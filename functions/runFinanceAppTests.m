@@ -6,7 +6,7 @@ import matlab.unittest.TestRunner
 import matlab.unittest.plugins.CodeCoveragePlugin
 
 % Retrieve tests for app.
-testSuite = TestSuite.fromPackage("tests");
+testSuite = TestSuite.fromPackage("test");
 
 % Add test runner for code coverage.
 runner = TestRunner.withTextOutput;
