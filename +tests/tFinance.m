@@ -13,6 +13,10 @@ classdef tFinance < matlab.unittest.TestCase
         ValidIncome = {0, 25000, 75000, 150000, 200000};
         % Values of invalid income.
         InvalidIncome = {-10000, 250000};
+        % Values of known tax for valid incomes.
+        KnownTax = {0, 2500, 17500, 52500, 72500};
+        % Values of known national insurance for valid income.
+        KnownNationalInsurance = {0, 1964, 5464, 6964, 7964};
         % Values of valid currency.
         ValidCurrency = cellstr(Finance.AllowedCurrencies);
         % Values of invalid currency.
@@ -26,15 +30,18 @@ classdef tFinance < matlab.unittest.TestCase
     methods (TestMethodSetup)
         
         function deleteMATFiles(~)
-            warning("off", "MATLAB:DELETE:FileNotFound")
+%             warning("off", "MATLAB:DELETE:FileNotFound")
             
-            % Delete API key file.
+            % Delete currency file.
             delete(Finance.CurrencyFile);
+            
+            % Delete tax-NI file.
+            delete(Finance.TaxNIFile);
             
             % Delete deductions history.
             delete(Finance.Session);
             
-            warning("on", "MATLAB:DELETE:FileNotFound")
+%             warning("on", "MATLAB:DELETE:FileNotFound")
         end % deleteMATFiles
         
         function createModel(obj)
@@ -45,6 +52,7 @@ classdef tFinance < matlab.unittest.TestCase
     end % methods (TestMethodSetup)
     
     methods (Test, ParameterCombination = "sequential")
+        % Test set methods for class properties.
         
         function setValidIncome(obj, ValidIncome)
             % Set gross income.
@@ -89,9 +97,25 @@ classdef tFinance < matlab.unittest.TestCase
         
     end % methods (Test, ParameterCombination = "sequential")
     
-    methods (Test)
+    methods (Test, ParameterCombination = "sequential")
+        % Test get methods for class properties.
         
-        function addPreTaxVoluntaryDeductions(obj)           
+        function getNetIncome(obj, ValidIncome, KnownTax, KnownNationalInsurance)
+            % Set income to specific values.
+            obj.Model.GrossIncome = ValidIncome;
+            
+            % Check values.
+            obj.fatalAssertEqual(obj.Model.Tax, KnownTax);
+            obj.fatalAssertEqual(obj.Model.NationalInsurance, KnownNationalInsurance);
+            obj.fatalAssertEqual(obj.Model.NetIncome, ValidIncome - KnownTax - KnownNationalInsurance);
+        end % getNetIncome
+        
+    end % methods (Test, ParameterCombination = "sequential")
+    
+    methods (Test)
+        % Test addition and removal of deductions.
+        
+        function addPreTaxVoluntaryDeductions(obj)
             % Add pre-tax voluntary deduction.
             obj.Model.addPreTaxVoluntaryDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
                 obj.Deduction.Currency, obj.Deduction.Recurrence);
@@ -100,7 +124,7 @@ classdef tFinance < matlab.unittest.TestCase
             obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PreTaxVoluntary);
         end % addPreTaxVoluntaryDeductions
         
-        function addPostTaxDeductions(obj)           
+        function addPostTaxDeductions(obj)
             % Add post-tax voluntary deduction.
             obj.Model.addPostTaxDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
                 obj.Deduction.Currency, obj.Deduction.Recurrence);
@@ -108,6 +132,58 @@ classdef tFinance < matlab.unittest.TestCase
             % Check value.
             obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PostTax);
         end % addPostTaxDeductions
+        
+        function removeSpecificPreTaxVoluntaryDeductions(obj)
+            % Add pre-tax voluntary deductions.
+            obj.Model.addPreTaxVoluntaryDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
+                obj.Deduction.Currency, obj.Deduction.Recurrence);
+            obj.Model.addPreTaxVoluntaryDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
+                obj.Deduction.Currency, obj.Deduction.Recurrence);
+            
+            % Remove first deduction.
+            obj.Model.removePreTaxVoluntaryDeduction(1);
+            
+            % Check value.
+            obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PreTaxVoluntary);
+        end % removeSpecificPreTaxVoluntaryDeductions
+        
+        function removeSpecificPostTaxDeductions(obj)
+            % Add post-tax voluntary deductions.
+            obj.Model.addPostTaxDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
+                obj.Deduction.Currency, obj.Deduction.Recurrence);
+            obj.Model.addPostTaxDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
+                obj.Deduction.Currency, obj.Deduction.Recurrence);
+            
+            % Remove all deductions.
+            obj.Model.removePostTaxDeduction(1);
+            
+            % Check value.
+            obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PostTax);
+        end % removeSpecificPostTaxDeductions
+        
+        function removeAllPreTaxVoluntaryDeductions(obj)
+            % Add pre-tax voluntary deduction.
+            obj.Model.addPreTaxVoluntaryDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
+                obj.Deduction.Currency, obj.Deduction.Recurrence);
+            
+            % Remove all deductions.
+            obj.Model.deletePreTaxVoluntaryDeductions();
+            
+            % Check value.
+            obj.fatalAssertEmpty(obj.Model.PreTaxVoluntary);
+        end % removeAllPreTaxVoluntaryDeductions
+        
+        function removeAllPostTaxDeductions(obj)
+            % Add post-tax voluntary deduction.
+            obj.Model.addPostTaxDeduction(obj.Deduction.Name, obj.Deduction.Deduction, ...
+                obj.Deduction.Currency, obj.Deduction.Recurrence);
+            
+            % Remove all deductions.
+            obj.Model.deletePostTaxDeductions();
+            
+            % Check value.
+            obj.fatalAssertEmpty(obj.Model.PostTax);
+        end % removeAllPostTaxDeductions
         
     end % methods (Test)
     
