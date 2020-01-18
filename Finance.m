@@ -273,9 +273,9 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         end % addPostTaxDeduction
         
         function amendPreTaxVoluntaryDeduction(obj, rowNumber, name, deduction, currency, recurrence)
-            % AMENDPRETAXDEDUCTION Amend a pre-tax deduction by 
-            % specifying the row number and new name, deduction value, 
-            % currency and recurrence. 
+            % AMENDPRETAXDEDUCTION Amend a pre-tax deduction by
+            % specifying the row number and new name, deduction value,
+            % currency and recurrence.
             
             % Check data.
             narginchk(6, 6)
@@ -302,9 +302,9 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         end % amendPreTaxVoluntaryDeduction
         
         function amendPostTaxDeduction(obj, rowNumber, name, deduction, currency, recurrence)
-            % AMENDPOSTTAXDEDUCTION Amend a post-tax deduction by 
-            % specifying the row number and new name, deduction value, 
-            % currency and recurrence. 
+            % AMENDPOSTTAXDEDUCTION Amend a post-tax deduction by
+            % specifying the row number and new name, deduction value,
+            % currency and recurrence.
             
             % Check data.
             narginchk(6, 6)

@@ -9,7 +9,7 @@ classdef (Sealed) CurrencyAPIHandler < element.EditFieldHandler
             % Set figure properties.
             obj.UIFigure.Name = "Set Currency API Key";
             obj.Label.Text = ["Please enter the API key to download currency", ...
-                        "conversion information, available from:"];
+                "conversion information, available from:"];
             obj.EditField.Value = "https://fixer.io";
             
             % Set properties.

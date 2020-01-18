@@ -85,13 +85,13 @@ classdef tFinance < matlab.unittest.TestCase
             % Set currency.
             obj.fatalAssertError(@() set(obj.Model, "Currency", string(InvalidCurrency)), ...
                 "MATLAB:validators:mustBeMemberGenericText");
-                        
+            
             % Set pre-tax voluntary deduction.
             obj.fatalAssertError(@() obj.Model.addPreTaxVoluntaryDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
                 InvalidCurrency, obj.Deduction.Recurrence), ...
                 "Finance:PreTaxVoluntary:InvalidCurrency");
-                        
+            
             % Set post-tax deduction.
             obj.fatalAssertError(@() obj.Model.addPostTaxDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
@@ -108,13 +108,13 @@ classdef tFinance < matlab.unittest.TestCase
             % Set currency.
             obj.fatalAssertError(@() set(obj.Model, "Recurrence", string(InvalidRecurrence)), ...
                 "MATLAB:validators:mustBeMemberGenericText");
-                        
+            
             % Set pre-tax voluntary deduction.
             obj.fatalAssertError(@() obj.Model.addPreTaxVoluntaryDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
                 obj.Deduction.Currency, InvalidRecurrence), ...
                 "Finance:PreTaxVoluntary:InvalidRecurrence");
-                        
+            
             % Set post-tax deduction.
             obj.fatalAssertError(@() obj.Model.addPostTaxDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
@@ -149,7 +149,7 @@ classdef tFinance < matlab.unittest.TestCase
             obj.fatalAssertEqual(preTaxCompulsory.Deduction(2), KnownNationalInsurance);
         end % getPreTaxCompulsory
         
-        function getDeductions(obj, ValidIncome, KnownTax, KnownNationalInsurance)                
+        function getDeductions(obj, ValidIncome, KnownTax, KnownNationalInsurance)
             % Set income to specific values.
             obj.Model.GrossIncome = ValidIncome;
             
