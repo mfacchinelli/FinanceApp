@@ -81,7 +81,7 @@ classdef (Abstract, Hidden) Component < element.Element
                     end
                 else
                     if nargin == 3
-                        uialert(rootFigure, exception.message, ...
+                        uialert(rootFigure, eraseTags(exception.message), ...
                             sprintf("Caught Exception - %s", exception.identifier));
                     else
                         rethrow(exception)

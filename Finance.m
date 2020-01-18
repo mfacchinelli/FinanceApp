@@ -89,7 +89,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         % Values of allowed recurrence.
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
         % Inflection points in gross income for tax and National Insurance.
-        InflectionValues = [0, 12500, 50000, 100000, 150000, 200000]
+        InflectionValues = [0, 12500, 50000, 100000, 125000, 150000, 200000]
         % Name of MAT file where current session is saved.
         Session = getSessionFile()
         % Name of MAT file containing currency conversion values.
@@ -271,6 +271,64 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % Update finances.
             obj.update();
         end % addPostTaxDeduction
+        
+        function amendPreTaxVoluntaryDeduction(obj, rowNumber, name, deduction, currency, recurrence)
+            % AMENDPRETAXDEDUCTION Amend a pre-tax deduction by 
+            % specifying the row number and new name, deduction value, 
+            % currency and recurrence. 
+            
+            % Check data.
+            narginchk(6, 6)
+            assert(isnumeric(rowNumber), "Finance:PreTaxVoluntary:InvalidRow", "Row values must be numeric.")
+            assert(all(rowNumber > 0), "Finance:PreTaxVoluntary:InvalidRow", "Row number must be positive.")
+            assert(all(rowNumber <= size(obj.PreTaxVoluntary, 1)), "Finance:PreTaxVoluntary:InvalidRow", ...
+                "Row specified does not exist. Maximum value is %d.", size(obj.PreTaxVoluntary, 1))
+            assert(isstring(name), "Finance:PreTaxVoluntary:InvalidName", "Name must be of type string.")
+            assert(isnumeric(deduction), "Finance:PreTaxVoluntary:InvalidDeduction", "Deduction must be of type numeric.")
+            try mustBeCurrency(currency); catch
+                error("Finance:PreTaxVoluntary:InvalidCurrency", ...
+                    "Currency must be member of: %s.", strjoin(obj.AllowedCurrencies, ", "))
+            end
+            try mustBeRecurrence(recurrence); catch
+                error("Finance:PreTaxVoluntary:InvalidRecurrence", ...
+                    "Recurrence must be member of: %s.", strjoin(obj.AllowedRecurrence, ", "))
+            end
+            
+            % Add data to pre-tax table.
+            obj.PreTaxVoluntary(rowNumber, :) = {name, deduction, currency, recurrence};
+            
+            % Update finances.
+            obj.update();
+        end % amendPreTaxVoluntaryDeduction
+        
+        function amendPostTaxDeduction(obj, rowNumber, name, deduction, currency, recurrence)
+            % AMENDPOSTTAXDEDUCTION Amend a post-tax deduction by 
+            % specifying the row number and new name, deduction value, 
+            % currency and recurrence. 
+            
+            % Check data.
+            narginchk(6, 6)
+            assert(isnumeric(rowNumber), "Finance:PostTax:InvalidRow", "Row values must be numeric.")
+            assert(all(rowNumber > 0), "Finance:PostTax:InvalidRow", "Row number must be positive.")
+            assert(all(rowNumber <= size(obj.PostTax, 1)), "Finance:PostTax:InvalidRow", ...
+                "Row specified does not exist. Maximum value is %d.", size(obj.PostTax, 1))
+            assert(isstring(name), "Finance:PostTax:InvalidName", "Name must be of type string.")
+            assert(isnumeric(deduction), "Finance:PostTax:InvalidDeduction", "Deduction must be of type numeric.")
+            try mustBeCurrency(currency); catch
+                error("Finance:PostTax:InvalidCurrency", ...
+                    "Currency must be member of: %s.", strjoin(obj.AllowedCurrencies, ", "))
+            end
+            try mustBeRecurrence(recurrence); catch
+                error("Finance:PostTax:InvalidRecurrence", ...
+                    "Recurrence must be member of: %s.", strjoin(obj.AllowedRecurrence, ", "))
+            end
+            
+            % Add data to post-tax table.
+            obj.PostTax(rowNumber, :) = {name, deduction, currency, recurrence};
+            
+            % Update finances.
+            obj.update();
+        end % amendPostTaxDeduction
         
         function removePreTaxVoluntaryDeduction(obj, rowNumbers)
             % REMOVEPRETAXVOLUNTARYDEDUCTION Remove one or more pre-tax
@@ -733,7 +791,7 @@ function [TaxNIMatrix, TaxNIUpdate] = getTaxNIDefaults()
 % GETTAXNIDEFAULTS Function to return default values of tax and National
 % Insurance information.
 
-TaxNIMatrix = [0, 0; 0, 464; 7500, 4964; 27500, 5964; 52500, 6964; 75000, 7964];
+TaxNIMatrix = [0, 0; 0, 464; 7500, 4964; 27500, 5964; 42500, 6464; 52500, 6964; 75000, 7964];
 TaxNIUpdate = NaT;
 
 end % getTaxNIDefaults

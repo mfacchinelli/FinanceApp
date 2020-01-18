@@ -32,9 +32,15 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                 "Text", "Add", ...
                 "MenuSelectedFcn", @obj.onAdd);
             
+            % Add submenu to edit deduction.
+            obj.Menus(1) = uimenu(obj.Main, ...
+                "Text", "Edit", ...
+                "MenuSelectedFcn", @obj.onEdit);
+            
             % Add submenu to remove deduction.
             obj.Menus(2) = uimenu(obj.Main, ...
-                "Text", "Remove...");
+                "Text", "Remove...", ...
+                "Separator", "on");
             
             obj.Menus(3) = uimenu(obj.Menus(2), ...
                 "Text", "Selection", ...
@@ -88,13 +94,52 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             % deductions.
             
             % Call UI dialog app.
-            obj.createDialog(getRootFigure(obj.Parent), ...
+            obj.createDialog(getRootFigure(obj), ...
                 "element.window.AddDeductionHandler", ...
                 "AllowedCurrencies", obj.Model.AllowedCurrencies, ...
                 "AllowedRecurrence", obj.Model.AllowedRecurrence, ...
                 "ParentPosition", getRootFigure(obj).Position, ...
                 "OKFcn", @obj.onAddOK);
         end % onAdd
+        
+        function onEdit(obj, ~, ~)
+            % ONEDIT Internal function to create dialog input to edit
+            % selected deduction.
+            
+            % Retrieve views from main app.
+            views = getRootFigure(obj).RunningAppInstance.Views;
+            
+            % Retrieve needed view.
+            for v = views(:)'
+                if isa(v, "element.view.DeductionsView")
+                    if strcmp(v.TrackedProperty, obj.TrackedProperty_)
+                        % Retrieve selected rows.
+                        selectedRow = v.SelectedCells(:, 1);
+                    end
+                end
+            end
+            
+            % Check that only one row has been selected.
+            if any(isnan(selectedRow)) || numel(selectedRow) ~= 1
+                uialert(getRootFigure(obj), "You must select one and only one cell before using this feature.", ...
+                    "Invalid Cell Selection", "Icon", "warning");
+            end
+            
+            % Retrieve selected deduction.
+            selectedDeduction = obj.Model.(obj.TrackedProperty_)(selectedRow, :);
+            
+            % Call UI dialog app.
+            obj.createDialog(getRootFigure(obj), ...
+                "element.window.AddDeductionHandler", ...
+                "DefaultName", selectedDeduction.Name, ...
+                "DefaultValue", selectedDeduction.Deduction, ...
+                "AllowedCurrencies", obj.Model.AllowedCurrencies, ...
+                "DefaultCurrency", selectedDeduction.Currency, ...
+                "AllowedRecurrence", obj.Model.AllowedRecurrence, ...
+                "DefaultRecurrence", selectedDeduction.Recurrence, ...
+                "ParentPosition", getRootFigure(obj).Position, ...
+                "OKFcn", @() obj.onEditOK(selectedRow));
+        end % onEdit
         
         function onRemoveSelection(obj, ~, ~)
             % ONREMOVESELECTION Internal function to remove selected row
@@ -107,7 +152,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             for v = views(:)'
                 if isa(v, "element.view.DeductionsView")
                     if strcmp(v.TrackedProperty, obj.TrackedProperty_)
-                        % Retrieve selected row.
+                        % Retrieve selected rows.
                         selectedRows = v.SelectedCells(:, 1);
                     end
                 end
@@ -119,7 +164,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                     "method", getRootFigure(obj));
             else
                 uialert(getRootFigure(obj), "You must select at least one cell before using this feature.", ...
-                    "No Cell Selected", "Icon", "warning");
+                    "Invalid Cell Selection", "Icon", "warning");
             end
         end % onRemoveSelection
         
@@ -128,7 +173,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             % from finance model.
             
             % Call UI dialog app.
-            obj.createDialog(getRootFigure(obj.Parent), ...
+            obj.createDialog(getRootFigure(obj), ...
                 "element.window.RemoveDeductionHandler", ...
                 "ParentPosition", getRootFigure(obj).Position, ...
                 "OKFcn", @obj.onRemoveRowsOK);
@@ -139,7 +184,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
             % from finance model.
             
             % Remove all deductions.
-            uiconfirm(getRootFigure(obj.Parent), ...
+            uiconfirm(getRootFigure(obj), ...
                 "Do you wish to remove all deductions? This cannot be undone.", ...
                 sprintf("Remove All %s Deductions", obj.TrackedProperty_), ...
                 "Options", ["OK", "Cancel"], ...
@@ -147,7 +192,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                 "CloseFcn", @obj.onRemoveEverythingOK);
         end % onRemoveEverything
         
-        function onAddOK(obj, ~, ~)
+        function onAddOK(obj)
             % ONADDOK Internal function to add deduction to finance model.
             
             % Retrieve edit field value.
@@ -167,7 +212,27 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                 "method", getRootFigure(obj));
         end % onAddOK
         
-        function onRemoveRowsOK(obj, ~, ~)
+        function onEditOK(obj, selectedRow) %#ok<INUSD>
+            % ONADDOK Internal function to add deduction to finance model.
+            
+            % Retrieve edit field value.
+            value = obj.Dialog.InputValue;
+            
+            % Split and check value at semicolons.
+            splitvalue = strip(strsplit(value, ";"));
+            assert(numel(splitvalue) == 4, "DeductionsController:Dialog:WrongSize", ...
+                "When adding a deduction you must specify all inputs (name, value, currency, and recurrence).")
+            
+            % Convert values to supported.
+            splitvalue = cellfun(@string, splitvalue, "UniformOutput", false);
+            splitvalue{2} = str2double(splitvalue{2}); %#ok<NASGU>
+            
+            % Pass information to model for further processing.
+            obj.evalErrorHandler(sprintf("obj.Model.amend%sDeduction(selectedRow, splitvalue{:});", ...
+                obj.TrackedProperty_), "method", getRootFigure(obj));
+        end % onEditOK
+        
+        function onRemoveRowsOK(obj)
             % ONREMOVEROWSOK Internal function to remove deduction from
             % finance model.
             
@@ -187,7 +252,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                 "method", getRootFigure(obj));
         end % onRemoveRowsOK
         
-        function onRemoveEverythingOK(obj, ~, ~)
+        function onRemoveEverythingOK(obj)
             % ONREMOVEEVERYTHINGOK Internal function to remove all
             % deductions from finance model.
             

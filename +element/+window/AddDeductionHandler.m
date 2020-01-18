@@ -6,6 +6,10 @@ classdef (Sealed) AddDeductionHandler < element.InputHandler
     end % properties (Dependent, SetAccess = private)
     
     properties (Dependent)
+        % Default value of deduction name.
+        DefaultName
+        % Default value of deduction value.
+        DefaultValue
         % Allowed values of currency.
         AllowedCurrencies
         % Default value of currency.
@@ -33,7 +37,7 @@ classdef (Sealed) AddDeductionHandler < element.InputHandler
             % Set label values.
             obj.UIFigure.Name = "Add Deduction";
             obj.Label.Text = ["Please enter new deduction information (name, value, ", ...
-                        "currency, and recurrence) separated by semicolons."];
+                "currency, and recurrence) separated by semicolons."];
             
             % Set properties.
             set(obj, varargin{:})
@@ -52,6 +56,22 @@ classdef (Sealed) AddDeductionHandler < element.InputHandler
             % Combine values.
             value = strjoin({name, deduction, currency, recurrence}, "; ");
         end % get.InputValue
+        
+        function set.DefaultName(obj, value)
+            obj.EditField.Value = value;
+        end % get.DefaultName
+        
+        function value = get.DefaultName(obj)
+            value = obj.EditField.Value;
+        end % get.DefaultName
+        
+        function set.DefaultValue(obj, value)
+            obj.Spinner.Value = value;
+        end % get.DefaultValue
+        
+        function value = get.DefaultValue(obj)
+            value = obj.Spinner.Value;
+        end % get.DefaultValue
         
         function set.AllowedCurrencies(obj, value)
             obj.CurrencyDropDown.Items = value;
