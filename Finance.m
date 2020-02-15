@@ -430,27 +430,27 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     
     methods (Access = ?element.hybrid.SettingsViewController)
         
-        function setFromImport(obj, grossIncome, preTaxDeductions, postTaxDeductions)
+        function setFromImport(obj, YearlyGrossIncome, PreTaxVoluntary, PostTax)
             % SETFROMIMPORT Function to set values of yearly gross income,
             % and pre-tax and post-tax deductions from MAT file.
             
             % Store values.
-            obj.YearlyGrossIncome = grossIncome;
-            obj.PreTaxVoluntary = preTaxDeductions;
-            obj.PostTax = postTaxDeductions;
+            obj.YearlyGrossIncome = YearlyGrossIncome;
+            obj.PreTaxVoluntary = PreTaxVoluntary;
+            obj.PostTax = PostTax;
             
             % Update finances.
             obj.update();
         end % setFromImport
         
-        function [grossIncome, preTaxDeductions, postTaxDeductions] = getForExport(obj)
+        function [YearlyGrossIncome, PreTaxVoluntary, PostTax] = getForExport(obj)
             % GETFOREXPORT Function to get values of yearly gross income,
             % and pre-tax and post-tax deductions for export to MAT file.
             
             % Store values.
-            grossIncome = obj.YearlyGrossIncome;
-            preTaxDeductions = obj.PreTaxVoluntary;
-            postTaxDeductions = obj.PostTax;
+            YearlyGrossIncome = obj.YearlyGrossIncome;
+            PreTaxVoluntary = obj.PreTaxVoluntary;
+            PostTax = obj.PostTax;
         end % setFromImport
         
     end % methods (Access = ?element.hybrid.SettingsViewController)

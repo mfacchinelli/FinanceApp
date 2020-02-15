@@ -288,9 +288,9 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % Check that a file has been selected.
             if ~isequal(fileName, 0) && ~isequal(pathName, 0)
                 % Get variables from model.
-                [grossIncome, preTaxDeductions, postTaxDeductions] = obj.Model.getForExport(); %#ok<ASGLU>
-                deductPension = obj.Model.DeductPension; %#ok<NASGU>
-                pensionContribution = obj.Model.PensionContribution; %#ok<NASGU>
+                [YearlyGrossIncome, PreTaxVoluntary, PostTax] = obj.Model.getForExport(); %#ok<ASGLU>
+                DeductPension = obj.Model.DeductPension; %#ok<NASGU>
+                PensionContribution = obj.Model.PensionContribution; %#ok<NASGU>
                 
                 % Save variables to file.
                 save(fullfile(pathName, fileName), obj.Model.ImportExportVariables{:});
