@@ -119,7 +119,9 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.addSetObservableListeners();
             
             % Set data.
-            set(obj, varargin{:})
+            if ~isempty(varargin)
+                set(obj, varargin{:});
+            end
             
             % Update finances.
             obj.update();
