@@ -19,21 +19,15 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
         ImportButton matlab.ui.control.Button
         % Button for export of deductions file.
         ExportButton matlab.ui.control.Button
-        % Button for update of API key for fixer.io.
-        CurrencyAPIButton matlab.ui.control.Button
+        % Edit field for currency conversion last update.
+        CurrencyEditField matlab.ui.control.EditField
         % Button for currency conversion update.
-        CurrencyUpdateButton matlab.ui.control.Button
+        CurrencyButton matlab.ui.control.Button
         % Edit field for tax-NI last update.
         TaxNIEditField matlab.ui.control.EditField
         % Button for tax-NI update.
         TaxNIButton matlab.ui.control.Button
     end % properties (Access = private)
-    
-    properties (Constant, Access = private)
-        % Array of variables for import and export of MAT file.
-        ImportExportVariables = ["grossIncome", "preTaxDeductions", ...
-            "postTaxDeductions", "deductPension", "pensionContribution"]
-    end % properties (Constant, Access = private)
     
     methods
         
@@ -72,7 +66,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
                 "RowHeight", ["1x", "1x", "1x"]);
             
             obj.CurrencyGrid = uigridlayout(currencyPanel, ...
-                "ColumnWidth", ["1x", "1x"], ...
+                "ColumnWidth", ["1x", "1x", "1x"], ...
                 "RowHeight", "1x");
             
             obj.TaxNIGrid = uigridlayout(taxNIPanel, ...
@@ -98,17 +92,28 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % new model data. This function is triggered by a listener on
             % the Finance object 'Update' event.
             
-            % Update all viewers.
+            % Update all views.
             obj.PensionCheckBox.Value = obj.Model.DeductPension;
             if obj.PensionCheckBox.Value
                 obj.PensionSpinner.Enable = "on";
             else
                 obj.PensionSpinner.Enable = "off";
             end
+            
             obj.PensionSpinner.Value = obj.Model.PensionContribution;
             obj.WorkDaysSpinner.Value = obj.Model.WeeklyWorkDays;
             obj.WorkHoursSpinner.Value = obj.Model.DailyWorkHours;
-            obj.TaxNIEditField.Value = datestr(obj.Model.TaxNIUpdate, "dd mmmm yyyy");
+            
+            if isnat(obj.Model.CurrencyUpdate)
+                obj.CurrencyEditField.Value = "NaT";
+            else
+                obj.CurrencyEditField.Value = datestr(obj.Model.CurrencyUpdate, "dd mmmm yyyy");
+            end
+            if isnat(obj.Model.TaxNIUpdate)
+                obj.TaxNIEditField.Value = "NaT";
+            else
+                obj.TaxNIEditField.Value = datestr(obj.Model.TaxNIUpdate, "dd mmmm yyyy");
+            end
         end % onUpdate
         
     end % methods (Access = protected)
@@ -176,30 +181,37 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % Create import button.
             obj.ImportButton = uibutton(obj.DeductionsGrid, "push", ...
                 "Text", "Import Deductions MAT", ...
-                "ButtonPushedFcn", @(~, ~) onImport(obj));
+                "ButtonPushedFcn", @obj.onImport);
             obj.ImportButton.Layout.Row = 3;
             obj.ImportButton.Layout.Column = [1, 2];
             
             % Create export button.
             obj.ExportButton = uibutton(obj.DeductionsGrid, "push", ...
                 "Text", "Export Deductions MAT", ...
-                "ButtonPushedFcn", @(~, ~) onExport(obj));
+                "ButtonPushedFcn", @obj.onExport);
             obj.ExportButton.Layout.Row = 3;
             obj.ExportButton.Layout.Column = [3, 4];
             
-            % Create import button.
-            obj.CurrencyAPIButton = uibutton(obj.CurrencyGrid, "push", ...
-                "Text", "Set API for fixer.io", ...
-                "ButtonPushedFcn", @(~, ~) onCurrencyAPI(obj));
-            obj.CurrencyAPIButton.Layout.Row = 1;
-            obj.CurrencyAPIButton.Layout.Column = 1;
+            % Create label for currency edit field.
+            currencyLabel = uilabel(obj.CurrencyGrid, ...
+                "Text", "Last currency data update:", ...
+                "HorizontalAlignment", "right");
+            currencyLabel.Layout.Row = 1;
+            currencyLabel.Layout.Column = 1;
             
-            % Create export button.
-            obj.CurrencyUpdateButton = uibutton(obj.CurrencyGrid, "push", ...
+            % Create currency edit field.
+            obj.CurrencyEditField = uieditfield(obj.CurrencyGrid, "text", ...
+                "Value", "NaT", ...
+                "Editable", "off");
+            obj.CurrencyEditField.Layout.Row = 1;
+            obj.CurrencyEditField.Layout.Column = 2;
+            
+            % Create currency button.
+            obj.CurrencyButton = uibutton(obj.CurrencyGrid, "push", ...
                 "Text", "Update", ...
-                "ButtonPushedFcn", @(~, ~) onCurrencyUpdate(obj));
-            obj.CurrencyUpdateButton.Layout.Row = 1;
-            obj.CurrencyUpdateButton.Layout.Column = 2;
+                "ButtonPushedFcn", @obj.onCurrencyUpdate);
+            obj.CurrencyButton.Layout.Row = 1;
+            obj.CurrencyButton.Layout.Column = 3;
             
             % Create label for tax-NI edit field.
             taxNILabel = uilabel(obj.TaxNIGrid, ...
@@ -218,7 +230,7 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % Create update button.
             obj.TaxNIButton = uibutton(obj.TaxNIGrid, "push", ...
                 "Text", "Update", ...
-                "ButtonPushedFcn", @(~, ~) onTaxNIUpdate(obj));
+                "ButtonPushedFcn", @obj.onTaxNIUpdate);
             obj.TaxNIButton.Layout.Row = 1;
             obj.TaxNIButton.Layout.Column = 3;
         end % createComponents
@@ -248,20 +260,20 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % Check that a file has been selected.
             if ~isequal(fileName, 0) && ~isequal(pathName, 0)
                 % Load file.
-                load(fullfile(pathName, fileName), obj.ImportExportVariables{:});
+                load(fullfile(pathName, fileName), obj.Model.ImportExportVariables{:});
                 
                 % Make sure that variables are not empty.
                 checkExistence = arrayfun(@(i) evalin("caller", sprintf("exist('%s', 'var')", ...
-                    obj.ImportExportVariables(i))), 1:numel(obj.ImportExportVariables));
+                    obj.Model.ImportExportVariables(i))), 1:numel(obj.Model.ImportExportVariables));
                 if all(checkExistence)
                     % Set variables in model.
-                    obj.Model.setFromImport(grossIncome, preTaxDeductions, postTaxDeductions);
-                    obj.Model.DeductPension = deductPension;
-                    obj.Model.PensionContribution = pensionContribution;
+                    obj.Model.setFromImport(YearlyGrossIncome, PreTaxVoluntary, PostTax);
+                    obj.Model.DeductPension = DeductPension;
+                    obj.Model.PensionContribution = PensionContribution;
                 else
                     uialert(getRootFigure(obj), ...
                         sprintf("MAT file for import must include the following variables: %s.", ...
-                        strjoin(obj.ImportExportVariables, ", ")), "Invalid MAT File");
+                        strjoin(obj.Model.ImportExportVariables, ", ")), "Invalid MAT File");
                 end
             end
         end % onImport
@@ -276,65 +288,30 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % Check that a file has been selected.
             if ~isequal(fileName, 0) && ~isequal(pathName, 0)
                 % Get variables from model.
-                [grossIncome, preTaxDeductions, postTaxDeductions] = obj.Model.getForExport(); %#ok<ASGLU>
-                deductPension = obj.Model.DeductPension; %#ok<NASGU>
-                pensionContribution = obj.Model.PensionContribution; %#ok<NASGU>
+                [YearlyGrossIncome, PreTaxVoluntary, PostTax] = obj.Model.getForExport(); %#ok<ASGLU>
+                DeductPension = obj.Model.DeductPension; %#ok<NASGU>
+                PensionContribution = obj.Model.PensionContribution; %#ok<NASGU>
                 
                 % Save variables to file.
-                save(fullfile(pathName, fileName), obj.ImportExportVariables{:});
+                save(fullfile(pathName, fileName), obj.Model.ImportExportVariables{:});
             end
         end % onExport
         
-        function onCurrencyAPI(obj)
-            % ONCURRENCYAPI Internal function to ask user for API key to
-            % fixer.io. Free account is required.
-            
-            % Call UI dialog app.
-            obj.createDialog(getRootFigure(obj), ...
-                "element.window.CurrencyAPIHandler", ...
-                "ParentPosition", getRootFigure(obj).Position, ...
-                "OKFcn", @obj.onCurrencyOK);
-        end % onCurrencyAPI
-        
-        function onCurrencyUpdate(obj)
+        function onCurrencyUpdate(obj, ~, ~)
             % ONCURRENCYUPDATE Internal function to download currency
             % conversion information from fixer.io.
             
-            % Check for MAT file containing currency API key.
-            if exist(obj.Model.CurrencyFile, "file")
-                % Load API key.
-                load(obj.Model.CurrencyFile, "APIKey");
-                
-                % Check that API key is not empty and valid.
-                if isempty(APIKey) || ~(isstring(APIKey) || ischar(APIKey))
-                    % Delete any previous window.
-                    obj.Dialog.delete();
-                    
-                    % Reset API key.
-                    obj.onCurrencyAPI();
-                else
-                    % Try downloading data.
-                    try
-                        % Download conversions.
-                        [EUR2GBP, USD2GBP] = currency.downloadConversions(APIKey);
-                        
-                        % Store values.
-                        obj.Model.setCurrencyConversion(EUR2GBP, USD2GBP);
-                    catch exception
-                        if strcmp(exception.identifier, "MATLAB:webservices:ContentTypeReaderError")
-                            uialert(getRootFigure(obj), ...
-                                ["Input API key is not valid. Please download the current one from: ", ...
-                                "https://www.income-tax.co.uk/tax-calculator-api/"], ...
-                                "Invalid API Key");
-                        else
-                            uialert(getRootFigure(obj), exception.message, ...
-                                sprintf("Caught Exception - %s", exception.identifier));
-                        end
-                    end
-                end
+            % Check if API key is empty.
+            if isempty(obj.Model.CurrencyAPI)
+                % Call UI dialog app.
+                obj.createDialog(getRootFigure(obj), ...
+                    "element.window.CurrencyAPIHandler", ...
+                    "ParentPosition", getRootFigure(obj).Position, ...
+                    "OKFcn", @obj.onCurrencyOK);
             else
-                % Set API key.
-                obj.onCurrencyAPI();
+                % Try downloading updated currency conversions.
+                obj.evalErrorHandler("obj.Model.downloadCurrencyConversion(obj.Model.CurrencyAPI);", ...
+                    "api", getRootFigure(obj));
             end
         end % onCurrencyUpdate
         
@@ -357,13 +334,11 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % ONCURRENCYOK Internal function to store API key to MAT file.
             
             % Retrieve value.
-            APIKey = obj.Dialog.EditFieldValue;
+            APIKey = obj.Dialog.InputValue; %#ok<NASGU>
             
-            % Save value to MAT file.
-            save(obj.Model.CurrencyFile, "APIKey");
-            
-            % Call function to download currency conversions.
-            obj.onCurrencyUpdate();
+            % Try downloading updated currency conversions.
+            obj.evalErrorHandler("obj.Model.downloadCurrencyConversion(APIKey);", ...
+                "api", getRootFigure(obj));
         end % onCurrencyOK
         
         function onTaxNIOK(obj, ~, ~)
@@ -371,29 +346,11 @@ classdef (Sealed) SettingsViewController < element.ComponentWithListenerPanel & 
             % National Insurance information based on input API key.
             
             % Retrieve edit field value.
-            APIKey = obj.Dialog.EditFieldValue;
+            APIKey = obj.Dialog.InputValue; %#ok<NASGU>
             
-            % Try downloading new data.
-            try
-                % Download new tax and National Insurance information.
-                [taxNIMatrix, updateDate] = taxni.downloadTaxNI(APIKey, obj.Model.InflectionValues);
-                
-                % Save values to MAT file.
-                save(obj.Model.TaxNIFile, "taxNIMatrix", "updateDate");
-                
-                % Invoke load function for MAT file.
-                obj.Model.loadTaxNIInformation();
-            catch exception
-                if strcmp(exception.identifier, "MATLAB:webservices:ContentTypeReaderError")
-                    uialert(getRootFigure(obj), ...
-                        ["Input API key is not valid. Please download the current one from: ", ...
-                        "https://www.income-tax.co.uk/tax-calculator-api/"], ...
-                        "Invalid API Key");
-                else
-                    uialert(getRootFigure(obj), exception.message, ...
-                        sprintf("Caught Exception - %s", exception.identifier));
-                end
-            end
+            % Try downloading new tax and National Insurance information.
+            obj.evalErrorHandler("obj.Model.downloadTaxNationalInsurance(APIKey);", ...
+                "api", getRootFigure(obj));
         end % onTaxNIOK
         
     end % methods (Access = private)

@@ -37,12 +37,12 @@ classdef (Sealed) RecurrenceController < element.Component
                 obj.Buttons(r).Position(1) = r * obj.Width_ / numel(obj.Model.AllowedRecurrence) - ...
                     obj.Buttons(r).Position(3);
             end
-                                    
+            
             % Set properties.
             set(obj, varargin{:})
         end % constructor
         
-        function set.Width(obj, value)            
+        function set.Width(obj, value)
             % Set value.
             obj.Width_ = value;
             

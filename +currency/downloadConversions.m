@@ -1,6 +1,6 @@
 function [EUR2GBP, USD2GBP, updateDate] = downloadConversions(APIKey)
 % DOWNLOADCONVERSIONS Download currency conversion information based for
-% supported currencies, by using fixer.io APIs. The API key needs to be 
+% supported currencies, by using fixer.io APIs. The API key needs to be
 % accessed with a free account for:
 % https://fixer.io
 
@@ -19,7 +19,7 @@ options = weboptions("Timeout", 5, "CharacterEncoding", "UTF-8", "ContentType", 
 result = webread(url, options);
 
 % Determine conversions w.r.t. GBP.
-switch result.base 
+switch result.base
     case "GBP"
         % Values are already converted.
         EUR2GBP = result.rates.EUR;

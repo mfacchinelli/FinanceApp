@@ -1,9 +1,9 @@
 classdef (Abstract, Hidden) InputHandler < element.Handler
     
-    properties (Dependent, SetAccess = private)
-        % Access value of edit field.
-        EditFieldValue
-    end % properties (Dependent, SetAccess = private)
+    properties (Abstract, Dependent, SetAccess = private)
+        % Access value of input.
+        InputValue
+    end % properties (Abstract, Dependent, SetAccess = private)
     
     properties (GetAccess = private)
         % Callback for OK button pushed.
@@ -15,8 +15,6 @@ classdef (Abstract, Hidden) InputHandler < element.Handler
     properties (Access = protected)
         % Label to show custom text.
         Label matlab.ui.control.Label
-        % Edit field to capture own text.
-        EditField matlab.ui.control.EditField
         % Button to return edit field value to main obj.
         OKButton matlab.ui.control.Button
         % Button to cancel transaction and delete obj.
@@ -33,10 +31,6 @@ classdef (Abstract, Hidden) InputHandler < element.Handler
             obj.setLayout();
         end % constructor
         
-        function value = get.EditFieldValue(obj)
-            value = obj.EditField.Value;
-        end % get.EditFieldValue
-        
     end % methods
     
     methods (Abstract, Access = protected)
@@ -49,7 +43,7 @@ classdef (Abstract, Hidden) InputHandler < element.Handler
         
         function createBasicComponents(obj)
             % CREATEBASICCOMPONENTS Internal function to create app
-            % components, i.e., text box and edit field.
+            % components.
             
             % Call superclass method.
             obj.createBasicComponents@element.Handler()
@@ -58,9 +52,6 @@ classdef (Abstract, Hidden) InputHandler < element.Handler
             obj.Label = uilabel(obj.Grid);
             obj.Label.HorizontalAlignment = "left";
             obj.Label.VerticalAlignment = "center";
-            
-            % Create EditField.
-            obj.EditField = uieditfield(obj.Grid, "text");
             
             % Create OKButton.
             obj.OKButton = uibutton(obj.Grid, "push");

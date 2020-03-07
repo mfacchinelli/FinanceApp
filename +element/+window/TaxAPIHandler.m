@@ -1,15 +1,15 @@
-classdef (Sealed) TaxAPIHandler < element.InputHandler
+classdef (Sealed) TaxAPIHandler < element.EditFieldHandler
     
     methods
         
         function obj = TaxAPIHandler(varargin)
             % Call superclass constructor.
-            obj@element.InputHandler();
+            obj@element.EditFieldHandler();
             
             % Set figure properties.
             obj.UIFigure.Name = "Set Income Tax API Key";
             obj.Label.Text = ["Please enter the API key to download new tax and", ...
-                        "National Insurance information, available from:"];
+                "National Insurance information, available from:"];
             obj.EditField.Value = "https://www.income-tax.co.uk/tax-calculator-api/";
             
             % Set properties.

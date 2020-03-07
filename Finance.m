@@ -34,15 +34,33 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             mustBeLessThanOrEqual(DailyWorkHours, 24)} = 7.5
     end % properties (AbortSet, SetObservable)
     
+    properties (Dependent, SetAccess = private)
+        % Combined values of all deductions.
+        Deductions
+        % Combined values of tax and National Insurance as deduction table.
+        PreTaxCompulsory
+    end % properties (Dependent, SetAccess = private)
+    
     properties (SetAccess = private)
         % Table of voluntary pre-tax deductions.
-        PreTax table = getEmptyDeductionTable()
+        PreTaxVoluntary table = getEmptyDeductionTable()
         % Table of post-tax deductions.
         PostTax table = getEmptyDeductionTable()
+        % API key to download currency conversion information from
+        % fixer.io.
+        CurrencyAPI string = string.empty()
         % Conversion from GBP to EUR.
         EUR2GBP double = 0.85
         % Conversion from GBP to USD.
         USD2GBP double = 0.75
+        % Date denoting last time the currency information was updated.
+        CurrencyUpdate datetime = NaT
+        % Matrix containing tax and National Insurance values as a function
+        % of gross income.
+        TaxNIMatrix double = getTaxNIDefaults()
+        % Date denoting last time the tax and National Insurance
+        % information was updated.
+        TaxNIUpdate datetime = NaT
     end % properties (SetAccess = private)
     
     properties (Dependent, SetAccess = private)
@@ -51,13 +69,6 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         % Value of maximum income of tabulated data.
         MaxIncome
     end % properties (Dependent, SetAccess = private)
-    
-    properties (Dependent, SetAccess = private, GetAccess = ?element.Component)
-        % Combined values of tax and National Insurance as deduction table.
-        TaxNITable
-        % Combined values of all deductions.
-        Deductions
-    end % properties (Dependent, SetAccess = private, GetAccess = ?element.Component)
     
     properties (Access = private)
         % Private value of gross income.
@@ -70,16 +81,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         YearlyNetIncome double
         % Private value of tax and National Insurance.
         YearlyTaxNI double
-        % Matrix containing tax and National Insurance values as a function
-        % of gross income.
-        TaxNIMatrix double
     end % properties (Access = private)
-    
-    properties (Access = ?element.hybrid.SettingsViewController)
-        % Date denoting last time the tax and National Insurance
-        % information was updated.
-        TaxNIUpdate datetime
-    end % properties (Access = ?element.hybrid.SettingsViewController)
     
     properties (Constant)
         % Values of allowed currencies.
@@ -87,7 +89,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         % Values of allowed recurrence.
         AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
         % Inflection points in gross income for tax and National Insurance.
-        InflectionValues = [0, 12500, 50000, 150000, 200000]
+        InflectionValues = [0, 12500, 50000, 100000, 125000, 150000, 200000]
         % Name of MAT file where current session is saved.
         Session = getSessionFile()
         % Name of MAT file containing currency conversion values.
@@ -95,6 +97,12 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         % Name of MAT file containing UK tax and National Insurance values.
         TaxNIFile = getTaxNIFile()
     end % properties (Constant)
+    
+    properties (Constant, Access = ?element.hybrid.SettingsViewController)
+        % Array of variables for import and export of MAT file.
+        ImportExportVariables = ["YearlyGrossIncome", "PreTaxVoluntary", ...
+            "PostTax", "DeductPension", "PensionContribution"]
+    end % properties (Constant, Access = ?element.hybrid.SettingsViewController)
     
     events
         % Event notifying update of finance model.
@@ -104,9 +112,6 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     methods
         
         function obj = Finance(varargin)
-            % Set tax-NI information.
-            obj.loadTaxNIInformation();
-            
             % Load previous session.
             obj.load();
             
@@ -114,7 +119,9 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.addSetObservableListeners();
             
             % Set data.
-            set(obj, varargin{:})
+            if ~isempty(varargin)
+                set(obj, varargin{:});
+            end
             
             % Update finances.
             obj.update();
@@ -122,7 +129,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         
         function delete(obj)
             % Save current session.
-            obj.save();
+            obj.cache();
         end % destructor
         
         function set.GrossIncome(obj, value)
@@ -181,7 +188,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             value = obj.convertFrom(obj.Currency, obj.Recurrence, obj.MaxYearlyIncome);
         end % get.MaxIncome
         
-        function value = get.TaxNITable(obj)
+        function value = get.PreTaxCompulsory(obj)
             % Get empty deduction table.
             value = getEmptyDeductionTable();
             
@@ -195,13 +202,13 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             if obj.DeductPension
                 value(end+1, :) = {"Pension", obj.Pension, obj.Recurrence, "GBP"};
             end
-        end % get.TaxNITable
+        end % get.PreTaxCompulsory
         
         function value = get.Deductions(obj)
             % Sum pre-tax voluntary contributions.
             value(1) = obj.convertFrom(obj.Currency, obj.Recurrence, ...
-                sum(arrayfun(@(i) obj.convertTo(obj.PreTax.Currency(i), obj.PreTax.Recurrence(i), ...
-                obj.PreTax.Deduction(i)), 1:size(obj.PreTax, 1))));
+                sum(arrayfun(@(i) obj.convertTo(obj.PreTaxVoluntary.Currency(i), obj.PreTaxVoluntary.Recurrence(i), ...
+                obj.PreTaxVoluntary.Deduction(i)), 1:size(obj.PreTaxVoluntary, 1))));
             
             % Sum pre-tax compulsory contributions.
             value(2) = obj.convertFrom(obj.Currency, obj.Recurrence, sum(obj.YearlyTaxNI)) + obj.Pension;
@@ -216,31 +223,31 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     
     methods (Access = public)
         
-        function addPreTaxDeduction(obj, name, deduction, currency, recurrence)
-            % ADDPRETAXDEDUCTION Add one pre-tax deduction by specifying
-            % name, deduction value, currency and recurrence. This
-            % deduction will be subtracted from the pre-tax income value,
-            % before the computation of tax and National Insurance.
+        function addPreTaxVoluntaryDeduction(obj, name, deduction, currency, recurrence)
+            % ADDPRETAXVOLUNTARYDEDUCTION Add one pre-tax deduction by
+            % specifying name, deduction value, currency and recurrence.
+            % This deduction will be subtracted from the pre-tax income
+            % value, before the computation of tax and National Insurance.
             
             % Check data.
             narginchk(5, 5)
-            assert(isstring(name), "Finance:PreTax:InvalidName", "Name must be of type string.")
-            assert(isnumeric(deduction), "Finance:PreTax:InvalidDeduction", "Deduction must be of type numeric.")
+            assert(isstring(name), "Finance:PreTaxVoluntary:InvalidName", "Name must be of type string.")
+            assert(isnumeric(deduction), "Finance:PreTaxVoluntary:InvalidDeduction", "Deduction must be of type numeric.")
             try mustBeCurrency(currency); catch
-                error("Finance:PreTax:InvalidCurrency", ...
+                error("Finance:PreTaxVoluntary:InvalidCurrency", ...
                     "Currency must be member of: %s.", strjoin(obj.AllowedCurrencies, ", "))
             end
             try mustBeRecurrence(recurrence); catch
-                error("Finance:PreTax:InvalidRecurrence", ...
+                error("Finance:PreTaxVoluntary:InvalidRecurrence", ...
                     "Recurrence must be member of: %s.", strjoin(obj.AllowedRecurrence, ", "))
             end
             
             % Add data to pre-tax table.
-            obj.PreTax(end+1, :) = {name, deduction, currency, recurrence};
+            obj.PreTaxVoluntary(end+1, :) = {name, deduction, currency, recurrence};
             
             % Update finances.
             obj.update();
-        end % addPreTaxDeduction
+        end % addPreTaxVoluntaryDeduction
         
         function addPostTaxDeduction(obj, name, deduction, currency, recurrence)
             % ADDPOSTTAXDEDUCTION Add one post-tax deduction by specifying
@@ -267,24 +274,82 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.update();
         end % addPostTaxDeduction
         
-        function removePreTaxDeduction(obj, rowNumbers)
-            % REMOVEPRETAXDEDUCTION Remove one or more pre-tax deductions
-            % by specifying the row value. This deduction will be removed
-            % from the pre-tax list.
+        function amendPreTaxVoluntaryDeduction(obj, rowNumber, name, deduction, currency, recurrence)
+            % AMENDPRETAXDEDUCTION Amend a pre-tax deduction by
+            % specifying the row number and new name, deduction value,
+            % currency and recurrence.
             
             % Check data.
-            narginchk(2, 2)
-            assert(isnumeric(rowNumbers), "Finance:PreTax:InvalidRow", "Row values must be numeric.")
-            assert(all(rowNumbers > 0), "Finance:PreTax:InvalidRow", "Row number must be positive.")
-            assert(all(rowNumbers <= size(obj.PreTax, 1)), "Finance:PreTax:InvalidRow", ...
-                "Row specified does not exist. Maximum value is %d.", size(obj.PreTax, 1))
+            narginchk(6, 6)
+            assert(isnumeric(rowNumber), "Finance:PreTaxVoluntary:InvalidRow", "Row values must be numeric.")
+            assert(all(rowNumber > 0), "Finance:PreTaxVoluntary:InvalidRow", "Row number must be positive.")
+            assert(all(rowNumber <= size(obj.PreTaxVoluntary, 1)), "Finance:PreTaxVoluntary:InvalidRow", ...
+                "Row specified does not exist. Maximum value is %d.", size(obj.PreTaxVoluntary, 1))
+            assert(isstring(name), "Finance:PreTaxVoluntary:InvalidName", "Name must be of type string.")
+            assert(isnumeric(deduction), "Finance:PreTaxVoluntary:InvalidDeduction", "Deduction must be of type numeric.")
+            try mustBeCurrency(currency); catch
+                error("Finance:PreTaxVoluntary:InvalidCurrency", ...
+                    "Currency must be member of: %s.", strjoin(obj.AllowedCurrencies, ", "))
+            end
+            try mustBeRecurrence(recurrence); catch
+                error("Finance:PreTaxVoluntary:InvalidRecurrence", ...
+                    "Recurrence must be member of: %s.", strjoin(obj.AllowedRecurrence, ", "))
+            end
             
-            % Remove data from pre-tax table.
-            obj.PreTax(rowNumbers, :) = [];
+            % Add data to pre-tax table.
+            obj.PreTaxVoluntary(rowNumber, :) = {name, deduction, currency, recurrence};
             
             % Update finances.
             obj.update();
-        end % removePreTaxDeduction
+        end % amendPreTaxVoluntaryDeduction
+        
+        function amendPostTaxDeduction(obj, rowNumber, name, deduction, currency, recurrence)
+            % AMENDPOSTTAXDEDUCTION Amend a post-tax deduction by
+            % specifying the row number and new name, deduction value,
+            % currency and recurrence.
+            
+            % Check data.
+            narginchk(6, 6)
+            assert(isnumeric(rowNumber), "Finance:PostTax:InvalidRow", "Row values must be numeric.")
+            assert(all(rowNumber > 0), "Finance:PostTax:InvalidRow", "Row number must be positive.")
+            assert(all(rowNumber <= size(obj.PostTax, 1)), "Finance:PostTax:InvalidRow", ...
+                "Row specified does not exist. Maximum value is %d.", size(obj.PostTax, 1))
+            assert(isstring(name), "Finance:PostTax:InvalidName", "Name must be of type string.")
+            assert(isnumeric(deduction), "Finance:PostTax:InvalidDeduction", "Deduction must be of type numeric.")
+            try mustBeCurrency(currency); catch
+                error("Finance:PostTax:InvalidCurrency", ...
+                    "Currency must be member of: %s.", strjoin(obj.AllowedCurrencies, ", "))
+            end
+            try mustBeRecurrence(recurrence); catch
+                error("Finance:PostTax:InvalidRecurrence", ...
+                    "Recurrence must be member of: %s.", strjoin(obj.AllowedRecurrence, ", "))
+            end
+            
+            % Add data to post-tax table.
+            obj.PostTax(rowNumber, :) = {name, deduction, currency, recurrence};
+            
+            % Update finances.
+            obj.update();
+        end % amendPostTaxDeduction
+        
+        function removePreTaxVoluntaryDeduction(obj, rowNumbers)
+            % REMOVEPRETAXVOLUNTARYDEDUCTION Remove one or more pre-tax
+            % deductions by specifying the row value. This deduction will
+            % be removed from the pre-tax list.
+            
+            % Check data.
+            narginchk(2, 2)
+            assert(isnumeric(rowNumbers), "Finance:PreTaxVoluntary:InvalidRow", "Row values must be numeric.")
+            assert(all(rowNumbers > 0), "Finance:PreTaxVoluntary:InvalidRow", "Row number must be positive.")
+            assert(all(rowNumbers <= size(obj.PreTaxVoluntary, 1)), "Finance:PreTaxVoluntary:InvalidRow", ...
+                "Row specified does not exist. Maximum value is %d.", size(obj.PreTaxVoluntary, 1))
+            
+            % Remove data from pre-tax table.
+            obj.PreTaxVoluntary(rowNumbers, :) = [];
+            
+            % Update finances.
+            obj.update();
+        end % removePreTaxVoluntaryDeduction
         
         function removePostTaxDeduction(obj, rowNumbers)
             % REMOVEPOSTTAXDEDUCTION Remove one or more post-tax deductions
@@ -305,16 +370,16 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.update();
         end % removePostTaxDeduction
         
-        function deletePreTaxDeductions(obj)
-            % DELETEPRETAXDEDUCTIONS Delete all pre-tax voluntary
+        function deletePreTaxVoluntaryDeductions(obj)
+            % DELETEPRETAXVOLUNTARYDEDUCTIONS Delete all pre-tax voluntary
             % deductions.
             
             % Empty table of pre-tax deductions.
-            obj.PreTax = getEmptyDeductionTable();
+            obj.PreTaxVoluntary = getEmptyDeductionTable();
             
             % Update finances.
             obj.update();
-        end % deletePreTaxDeductions
+        end % deletePreTaxVoluntaryDeductions
         
         function deletePostTaxDeductions(obj)
             % DELETEPOSTTAXDEDUCTIONS Delete all post-tax voluntary
@@ -327,63 +392,66 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             obj.update();
         end % deletePostTaxDeductions
         
+        function downloadCurrencyConversion(obj, CurrencyAPI)
+            % DOWNLOADCURRENCYCONVERSION Function to download currency
+            % conversion information from fixer.io.
+            
+            % Download and store updated currency conversions.
+            [EUR2GBP, USD2GBP, CurrencyUpdate] = currency.downloadConversions(CurrencyAPI); %#ok<ASGLU,PROPLC>
+            
+            % Show and store latest update date.
+            obj.save(obj.CurrencyFile, "CurrencyAPI", "EUR2GBP", "USD2GBP", "CurrencyUpdate");
+            
+            % Invoke load function for MAT file.
+            obj.loadCurrency();
+            
+            % Update finances.
+            obj.update();
+        end % downloadCurrencyConversion
+        
+        function downloadTaxNationalInsurance(obj, TaxNIAPI)
+            % DOWNLOADTAXNATIONALINSURANCE Function to download tax and
+            % National Insurance information from income-tax.co.uk.
+            
+            % Download new tax and National Insurance information.
+            [TaxNIMatrix, TaxNIUpdate] = taxni.downloadTaxNI(TaxNIAPI, obj.InflectionValues); %#ok<ASGLU,PROPLC>
+            
+            % Save values to MAT file.
+            obj.save(obj.TaxNIFile, "TaxNIMatrix", "TaxNIUpdate");
+            
+            % Invoke load function for MAT file.
+            obj.loadTaxNI();
+            
+            % Update finances.
+            obj.update();
+        end % downloadTaxNationalInsurance
+        
     end % methods (Access = public)
     
     methods (Access = ?element.hybrid.SettingsViewController)
         
-        function setFromImport(obj, grossIncome, preTaxDeductions, postTaxDeductions)
+        function setFromImport(obj, YearlyGrossIncome, PreTaxVoluntary, PostTax)
             % SETFROMIMPORT Function to set values of yearly gross income,
             % and pre-tax and post-tax deductions from MAT file.
             
             % Store values.
-            obj.YearlyGrossIncome = grossIncome;
-            obj.PreTax = preTaxDeductions;
-            obj.PostTax = postTaxDeductions;
+            obj.YearlyGrossIncome = YearlyGrossIncome;
+            obj.PreTaxVoluntary = PreTaxVoluntary;
+            obj.PostTax = PostTax;
             
             % Update finances.
             obj.update();
         end % setFromImport
         
-        function [grossIncome, preTaxDeductions, postTaxDeductions] = getForExport(obj)
+        function [YearlyGrossIncome, PreTaxVoluntary, PostTax] = getForExport(obj)
             % GETFOREXPORT Function to get values of yearly gross income,
             % and pre-tax and post-tax deductions for export to MAT file.
             
             % Store values.
-            grossIncome = obj.YearlyGrossIncome;
-            preTaxDeductions = obj.PreTax;
-            postTaxDeductions = obj.PostTax;
+            YearlyGrossIncome = obj.YearlyGrossIncome;
+            PreTaxVoluntary = obj.PreTaxVoluntary;
+            PostTax = obj.PostTax;
         end % setFromImport
-        
-        function setCurrencyConversion(obj, EUR2GBP, USD2GBP)
-            % SETCURRENCYCONVERSION Function to set values of conversion
-            % for currencies (EUR and USD) to GBP.
-            
-            % Store values.
-            obj.EUR2GBP = EUR2GBP;
-            obj.USD2GBP = USD2GBP;
-            
-            % Update finance.
-            obj.update();
-        end
-        
-        function loadTaxNIInformation(obj)
-            % LOADTAXNIINFORMATION Function to load tax and National
-            % Insurance information from MAT file.
-            
-            % Load MAT file.
-            load(obj.TaxNIFile, "taxNIMatrix", "updateDate");
-            
-            % Store values.
-            obj.TaxNIMatrix = taxNIMatrix;
-            obj.TaxNIUpdate = updateDate;
-            
-            % Determine values of minumum and maximum of tabulated values.
-            obj.MinYearlyIncome = min(obj.TaxNIMatrix(:, 1));
-            obj.MaxYearlyIncome = max(obj.TaxNIMatrix(:, 1));
-            
-            % Update finance.
-            obj.update();
-        end % loadTaxNIInformation
         
     end % methods (Access = ?element.hybrid.SettingsViewController)
     
@@ -410,40 +478,86 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             % app loads a MAT file containing the gross income value and
             % the voluntary pre-tax and post-tax deductions.
             
+            % Set currency and tax-NI information.
+            obj.loadCurrency();
+            obj.loadTaxNI();
+            
             % Check that MAT file exists.
             if exist(obj.Session, "file")
                 % Load MAT file.
-                load(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions", ...
-                    "deductPension", "pensionContribution");
+                load(obj.Session, obj.ImportExportVariables{:});
                 
                 % Store values.
-                obj.setFromImport(grossIncome, preTaxDeductions, postTaxDeductions);
-                obj.DeductPension = deductPension;
-                obj.PensionContribution = pensionContribution;
+                obj.setFromImport(YearlyGrossIncome, PreTaxVoluntary, PostTax); %#ok<CPROP>
+                obj.DeductPension = DeductPension; %#ok<CPROP>
+                obj.PensionContribution = PensionContribution; %#ok<CPROP>
             end
         end % load
         
-        function save(obj)
-            % SAVE Internal function to save current session of app. The
+        function loadCurrency(obj)
+            % LOADCURRENCY Function to load currency conversion information
+            % from MAT file.
+            
+            % Check that MAT file exists.
+            if exist(obj.CurrencyFile, "file")
+                % Load MAT file.
+                load(obj.CurrencyFile, "CurrencyAPI", "EUR2GBP", "USD2GBP", "CurrencyUpdate");
+                
+                % Store values.
+                obj.CurrencyAPI = CurrencyAPI; %#ok<PROP>
+                obj.EUR2GBP = EUR2GBP; %#ok<PROP>
+                obj.USD2GBP = USD2GBP; %#ok<PROP>
+                obj.CurrencyUpdate = CurrencyUpdate; %#ok<PROP>
+            else
+                % Give default values.
+                [obj.CurrencyAPI, obj.EUR2GBP, obj.USD2GBP, obj.CurrencyUpdate] = getCurrencyDefaults();
+                
+                % Save defaults.
+                saveStruct = struct("CurrencyAPI", obj.CurrencyAPI, "EUR2GBP", obj.EUR2GBP, ...
+                    "USD2GBP", obj.USD2GBP, "CurrencyUpdate", obj.CurrencyUpdate); %#ok<NASGU>
+                obj.save(obj.CurrencyFile, "-struct", "saveStruct");
+            end
+        end % loadCurrency
+        
+        function loadTaxNI(obj)
+            % LOADTAXNI Function to load tax and National Insurance
+            % information from MAT file.
+            
+            % Check that MAT file exists.
+            if exist(obj.TaxNIFile, "file")
+                % Load MAT file.
+                load(obj.TaxNIFile, "TaxNIMatrix", "TaxNIUpdate");
+                
+                % Store values.
+                obj.TaxNIMatrix = TaxNIMatrix; %#ok<PROP>
+                obj.TaxNIUpdate = TaxNIUpdate; %#ok<PROP>
+            else
+                % Give default values.
+                [obj.TaxNIMatrix, obj.TaxNIUpdate] = getTaxNIDefaults();
+                
+                % Save defaults.
+                saveStruct = struct("TaxNIMatrix", obj.TaxNIMatrix, "TaxNIUpdate", obj.TaxNIUpdate); %#ok<NASGU>
+                obj.save(obj.TaxNIFile, "-struct", "saveStruct");
+            end
+            
+            % Determine values of minumum and maximum of tabulated values.
+            obj.MinYearlyIncome = min(obj.InflectionValues);
+            obj.MaxYearlyIncome = max(obj.InflectionValues);
+        end % loadTaxNI
+        
+        function cache(obj)
+            % CACHE Internal function to save current session of app. The
             % app saves a MAT file containing the gross income value and
             % the voluntary pre-tax and post-tax deductions.
             
-            % Check that persistent folder exists.
-            if ~(ismcc || isdeployed) && ~exist(fileparts(obj.Session), "dir")
-                mkdir(fileparts(obj.Session))
-            end
-            
             % Retrieve values.
-            grossIncome = obj.YearlyGrossIncome;
-            preTaxDeductions = obj.PreTax;
-            postTaxDeductions = obj.PostTax;
-            deductPension = obj.DeductPension;
-            pensionContribution = obj.PensionContribution;
+            [YearlyGrossIncome, PreTaxVoluntary, PostTax] = obj.getForExport(); %#ok<ASGLU,PROP>
+            DeductPension = obj.DeductPension; %#ok<NASGU,PROP>
+            PensionContribution = obj.PensionContribution; %#ok<NASGU,PROP>
             
             % Save MAT file.
-            save(obj.Session, "grossIncome", "preTaxDeductions", "postTaxDeductions", ...
-                "deductPension", "pensionContribution");
-        end % save
+            obj.save(obj.Session, obj.ImportExportVariables{:});
+        end % cache
         
         function update(obj)
             % UPDATE Internal function to update values of income based
@@ -477,17 +591,17 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             end
             
             % For each entry, subtract from income.
-            for d = 1:size(obj.PreTax, 1)
+            for d = 1:size(obj.PreTaxVoluntary, 1)
                 % Convert to yearly.
-                yearlyDeduction = obj.convertTo(obj.PreTax.Currency(d), ...
-                    obj.PreTax.Recurrence(d), obj.PreTax.Deduction(d));
+                yearlyDeduction = obj.convertTo(obj.PreTaxVoluntary.Currency(d), ...
+                    obj.PreTaxVoluntary.Recurrence(d), obj.PreTaxVoluntary.Deduction(d));
                 
                 % Subtract from income.
                 netIncome = netIncome - yearlyDeduction;
             end
             
             % Retrieve tax-NI information for current gross income.
-            obj.YearlyTaxNI = interp1(obj.TaxNIMatrix(:, 1), obj.TaxNIMatrix(:, 2:3), netIncome, "linear", NaN);
+            obj.YearlyTaxNI = interp1(obj.InflectionValues, obj.TaxNIMatrix, netIncome, "linear", NaN);
             
             % Subtract tax and National Insurance, as last pre-tax deductions.
             netIncome = netIncome - sum(obj.YearlyTaxNI);
@@ -534,6 +648,22 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
     end % methods (Access = private)
     
     methods (Static, Access = private)
+        
+        function save(filename, varargin)
+            % SAVE Internal function to call built-in 'save' function with
+            % specified inputs and options. This function differs from
+            % built-in one, in that it creates the save folder if it does
+            % not exist.
+            
+            % Check that folder exists.
+            if ~(ismcc || isdeployed) && ~exist(fileparts(filename), "dir")
+                mkdir(fileparts(filename))
+            end
+            
+            % Call built-in save function.
+            evalin("caller", sprintf("save(""%s"", %s)", filename, ...
+                strjoin(cellfun(@(x) '"' + string(x) + '"', varargin), ", ")))
+        end % save
         
         function value = convertCurrency(operator, currency, value, EUR2GBP, USD2GBP)
             % CONVERTCURRENCY Convert currency with respect to GBP, based
@@ -617,23 +747,10 @@ function sessionFile = getSessionFile()
 if ismcc || isdeployed
     sessionFile = which("deductions.mat");
 else
-    sessionFile = fullfile("persistent", "deductions.mat");
+    sessionFile = fullfile("cache", "deductions.mat");
 end
 
 end % getSessionFile
-
-function taxNIFile = getTaxNIFile()
-% GETTAXNIMATRIX Function to return the tax-NI file downloaded using
-% income-tax.co.uk APIs.
-
-% Get tax-NI information.
-if ismcc || isdeployed
-    taxNIFile = which("taxNIInfo.mat");
-else
-    taxNIFile = fullfile("persistent", "taxNIInfo.mat");
-end
-
-end % getTaxNIMatrix
 
 function currencyFile = getCurrencyFile()
 % GETCURRENCYFILE Function to return the file where the currency API key
@@ -643,7 +760,40 @@ function currencyFile = getCurrencyFile()
 if ismcc || isdeployed
     currencyFile = which("currencyAPI.mat");
 else
-    currencyFile = fullfile("persistent", "currencyAPI.mat");
+    currencyFile = fullfile("cache", "currencyAPI.mat");
 end
 
 end % getCurrencyFile
+
+function taxNIFile = getTaxNIFile()
+% GETTAXNIFILE Function to return the tax-NI file downloaded using
+% income-tax.co.uk APIs.
+
+% Get tax-NI information.
+if ismcc || isdeployed
+    taxNIFile = which("taxNIInfo.mat");
+else
+    taxNIFile = fullfile("cache", "taxNIInfo.mat");
+end
+
+end % getTaxNIFile
+
+function [CurrencyAPI, EUR2GBP, USD2GBP, CurrencyUpdate] = getCurrencyDefaults()
+% GETCURRENCYDEFAULTS Function to return default values of currency
+% conversion information.
+
+CurrencyAPI = string.empty();
+EUR2GBP = 0.85;
+USD2GBP = 0.75;
+CurrencyUpdate = NaT;
+
+end % getCurrencyDefaults
+
+function [TaxNIMatrix, TaxNIUpdate] = getTaxNIDefaults()
+% GETTAXNIDEFAULTS Function to return default values of tax and National
+% Insurance information.
+
+TaxNIMatrix = [0, 0; 0, 464; 7500, 4964; 27500, 5964; 42500, 6464; 52500, 6964; 75000, 7964];
+TaxNIUpdate = NaT;
+
+end % getTaxNIDefaults

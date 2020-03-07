@@ -1,10 +1,10 @@
 function plotTaxNI()
 
 % Load tax-NI info.
-load(fullfile("persistent", "taxNIInfo.mat"), "taxNIMatrix")
+load(Finance.TaxNIFile, "TaxNIMatrix")
 
 % Create income matrix.
-income = taxNIMatrix(:, 1);
+income = TaxNIMatrix(:, 1);
 
 % Create figure.
 f = figure;
@@ -13,7 +13,7 @@ xlabel(a, "Income [k£]")
 grid(a, "on")
 
 yyaxis left
-tax = interp1(income, taxNIMatrix(:, 2), income, "linear")/1e3;
+tax = TaxNIMatrix(:, 2)/1e3;
 hold on
 scatter(a, income/1e3, tax, 65)
 plot(a, income/1e3, tax, "LineWidth", 1.5, "LineStyle", "--")
@@ -21,7 +21,7 @@ hold off
 ylabel(a, "Tax [k£]")
 
 yyaxis right
-ni = interp1(income, taxNIMatrix(:, 3), income, "linear")/1e3;
+ni = TaxNIMatrix(:, 3)/1e3;
 hold on
 scatter(a, income/1e3, ni, 65)
 plot(a, income/1e3, ni, "LineWidth", 1.5, "LineStyle", "-.")
