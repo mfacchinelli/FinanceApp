@@ -8,12 +8,12 @@ classdef (Abstract, Hidden) Element < matlab.mixin.SetGetExactNames & matlab.mix
     methods
         
         function obj = Element(model)
-            % Assign model to object.
-            if nargin > 0
-                assert(isa(model, "Finance"), "Component:Model:InvalidInput", ...
-                    "Model must be of type Finance.")
-                obj.Model = model;
+            arguments
+                model Finance = Finance.empty()
             end
+            
+            % Assign model to object.
+            obj.Model = model;
         end % constructor
         
     end % methods

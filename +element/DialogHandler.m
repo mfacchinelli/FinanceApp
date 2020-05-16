@@ -2,7 +2,7 @@ classdef (Abstract, Hidden) DialogHandler < matlab.mixin.SetGetExactNames
     
     properties (Access = protected)
         % Dialog app.
-        Dialog element.Handler = element.null.NullHandler
+        Dialog element.Handler = element.Handler.empty()
     end % properties (Access = protected)
     
     methods

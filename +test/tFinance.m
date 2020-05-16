@@ -62,16 +62,16 @@ classdef tFinance < matlab.unittest.TestCase
             obj.Model.GrossIncome = ValidIncome;
             
             % Check value.
-            obj.fatalAssertEqual(ValidIncome, obj.Model.GrossIncome)
+            obj.assertEqual(ValidIncome, obj.Model.GrossIncome)
         end % setValidIncome
         
         function setInvalidIncome(obj, InvalidIncome)
             % Set gross income and check error.
             if InvalidIncome < 0
-                obj.fatalAssertError(@() set(obj.Model, "GrossIncome", InvalidIncome), ...
+                obj.assertError(@() set(obj.Model, "GrossIncome", InvalidIncome), ...
                     "Finance:GrossIncome:LowerBound");
             else
-                obj.fatalAssertError(@() set(obj.Model, "GrossIncome", InvalidIncome), ...
+                obj.assertError(@() set(obj.Model, "GrossIncome", InvalidIncome), ...
                     "Finance:GrossIncome:UpperBound");
             end
         end % setInvalidIncome
@@ -83,17 +83,17 @@ classdef tFinance < matlab.unittest.TestCase
         
         function setInvalidCurrency(obj, InvalidCurrency)
             % Set currency.
-            obj.fatalAssertError(@() set(obj.Model, "Currency", string(InvalidCurrency)), ...
+            obj.assertError(@() set(obj.Model, "Currency", string(InvalidCurrency)), ...
                 "MATLAB:validators:mustBeMemberGenericText");
             
             % Set pre-tax voluntary deduction.
-            obj.fatalAssertError(@() obj.Model.addPreTaxVoluntaryDeduction(...
+            obj.assertError(@() obj.Model.addPreTaxVoluntaryDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
                 InvalidCurrency, obj.Deduction.Recurrence), ...
                 "Finance:PreTaxVoluntary:InvalidCurrency");
             
             % Set post-tax deduction.
-            obj.fatalAssertError(@() obj.Model.addPostTaxDeduction(...
+            obj.assertError(@() obj.Model.addPostTaxDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
                 InvalidCurrency, obj.Deduction.Recurrence), ...
                 "Finance:PostTax:InvalidCurrency");
@@ -106,17 +106,17 @@ classdef tFinance < matlab.unittest.TestCase
         
         function setInvalidRecurrence(obj, InvalidRecurrence)
             % Set currency.
-            obj.fatalAssertError(@() set(obj.Model, "Recurrence", string(InvalidRecurrence)), ...
+            obj.assertError(@() set(obj.Model, "Recurrence", string(InvalidRecurrence)), ...
                 "MATLAB:validators:mustBeMemberGenericText");
             
             % Set pre-tax voluntary deduction.
-            obj.fatalAssertError(@() obj.Model.addPreTaxVoluntaryDeduction(...
+            obj.assertError(@() obj.Model.addPreTaxVoluntaryDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
                 obj.Deduction.Currency, InvalidRecurrence), ...
                 "Finance:PreTaxVoluntary:InvalidRecurrence");
             
             % Set post-tax deduction.
-            obj.fatalAssertError(@() obj.Model.addPostTaxDeduction(...
+            obj.assertError(@() obj.Model.addPostTaxDeduction(...
                 obj.Deduction.Name, obj.Deduction.Deduction, ...
                 obj.Deduction.Currency, InvalidRecurrence), ...
                 "Finance:PostTax:InvalidRecurrence");
@@ -132,9 +132,9 @@ classdef tFinance < matlab.unittest.TestCase
             obj.Model.GrossIncome = ValidIncome;
             
             % Check values.
-            obj.fatalAssertEqual(obj.Model.Tax, KnownTax);
-            obj.fatalAssertEqual(obj.Model.NationalInsurance, KnownNationalInsurance);
-            obj.fatalAssertEqual(obj.Model.NetIncome, ValidIncome - KnownTax - KnownNationalInsurance);
+            obj.assertEqual(obj.Model.Tax, KnownTax);
+            obj.assertEqual(obj.Model.NationalInsurance, KnownNationalInsurance);
+            obj.assertEqual(obj.Model.NetIncome, ValidIncome - KnownTax - KnownNationalInsurance);
         end % getNetIncome
         
         function getPreTaxCompulsory(obj, ValidIncome, KnownTax, KnownNationalInsurance)
@@ -145,8 +145,8 @@ classdef tFinance < matlab.unittest.TestCase
             preTaxCompulsory = obj.Model.PreTaxCompulsory;
             
             % Check values.
-            obj.fatalAssertEqual(preTaxCompulsory.Deduction(1), KnownTax);
-            obj.fatalAssertEqual(preTaxCompulsory.Deduction(2), KnownNationalInsurance);
+            obj.assertEqual(preTaxCompulsory.Deduction(1), KnownTax);
+            obj.assertEqual(preTaxCompulsory.Deduction(2), KnownNationalInsurance);
         end % getPreTaxCompulsory
         
         function getDeductions(obj, ValidIncome, KnownTax, KnownNationalInsurance)
@@ -165,13 +165,13 @@ classdef tFinance < matlab.unittest.TestCase
             deductions = obj.Model.Deductions;
             
             % Check values.
-            obj.fatalAssertEqual(deductions(1), 100 * 12);
+            obj.assertEqual(deductions(1), 100 * 12);
             if ValidIncome == 0
-                obj.fatalAssertThat(deductions(2), matlab.unittest.constraints.HasNaN);
+                obj.assertThat(deductions(2), matlab.unittest.constraints.HasNaN);
             else
-                obj.fatalAssertLessThanOrEqual(deductions(2), (KnownTax + KnownNationalInsurance) * 12);
+                obj.assertLessThanOrEqual(deductions(2), (KnownTax + KnownNationalInsurance) * 12);
             end
-            obj.fatalAssertEqual(deductions(3), 100 * 12);
+            obj.assertEqual(deductions(3), 100 * 12);
         end % getDeductions
         
     end % methods (Test, ParameterCombination = "sequential")
@@ -185,7 +185,7 @@ classdef tFinance < matlab.unittest.TestCase
                 obj.Deduction.Currency, obj.Deduction.Recurrence);
             
             % Check value.
-            obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PreTaxVoluntary);
+            obj.assertEqual(struct2table(obj.Deduction), obj.Model.PreTaxVoluntary);
         end % addPreTaxVoluntaryDeductions
         
         function addPostTaxDeductions(obj)
@@ -194,7 +194,7 @@ classdef tFinance < matlab.unittest.TestCase
                 obj.Deduction.Currency, obj.Deduction.Recurrence);
             
             % Check value.
-            obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PostTax);
+            obj.assertEqual(struct2table(obj.Deduction), obj.Model.PostTax);
         end % addPostTaxDeductions
         
         function amendPreTaxVoluntaryDeductions(obj)
@@ -214,7 +214,7 @@ classdef tFinance < matlab.unittest.TestCase
                 editedDeduction.Deduction, editedDeduction.Currency, editedDeduction.Recurrence);
             
             % Check value.
-            obj.fatalAssertEqual(struct2table(editedDeduction), obj.Model.PreTaxVoluntary);
+            obj.assertEqual(struct2table(editedDeduction), obj.Model.PreTaxVoluntary);
         end % amendPreTaxVoluntaryDeductions
         
         function amendPostTaxDeductions(obj)
@@ -234,7 +234,7 @@ classdef tFinance < matlab.unittest.TestCase
                 editedDeduction.Deduction, editedDeduction.Currency, editedDeduction.Recurrence);
             
             % Check value.
-            obj.fatalAssertEqual(struct2table(editedDeduction), obj.Model.PostTax);
+            obj.assertEqual(struct2table(editedDeduction), obj.Model.PostTax);
         end % amendPostTaxDeductions
         
         function removeSpecificPreTaxVoluntaryDeductions(obj)
@@ -248,7 +248,7 @@ classdef tFinance < matlab.unittest.TestCase
             obj.Model.removePreTaxVoluntaryDeduction(1);
             
             % Check value.
-            obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PreTaxVoluntary);
+            obj.assertEqual(struct2table(obj.Deduction), obj.Model.PreTaxVoluntary);
         end % removeSpecificPreTaxVoluntaryDeductions
         
         function removeSpecificPostTaxDeductions(obj)
@@ -262,7 +262,7 @@ classdef tFinance < matlab.unittest.TestCase
             obj.Model.removePostTaxDeduction(1);
             
             % Check value.
-            obj.fatalAssertEqual(struct2table(obj.Deduction), obj.Model.PostTax);
+            obj.assertEqual(struct2table(obj.Deduction), obj.Model.PostTax);
         end % removeSpecificPostTaxDeductions
         
         function removeAllPreTaxVoluntaryDeductions(obj)
@@ -274,7 +274,7 @@ classdef tFinance < matlab.unittest.TestCase
             obj.Model.deletePreTaxVoluntaryDeductions();
             
             % Check value.
-            obj.fatalAssertEmpty(obj.Model.PreTaxVoluntary);
+            obj.assertEmpty(obj.Model.PreTaxVoluntary);
         end % removeAllPreTaxVoluntaryDeductions
         
         function removeAllPostTaxDeductions(obj)
@@ -286,7 +286,7 @@ classdef tFinance < matlab.unittest.TestCase
             obj.Model.deletePostTaxDeductions();
             
             % Check value.
-            obj.fatalAssertEmpty(obj.Model.PostTax);
+            obj.assertEmpty(obj.Model.PostTax);
         end % removeAllPostTaxDeductions
         
     end % methods (Test)
