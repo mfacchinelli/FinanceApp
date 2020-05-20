@@ -34,6 +34,7 @@ classdef (Sealed) RecurrenceController < element.Component
                     "Value", strcmp(obj.Model.Recurrence, obj.Model.AllowedRecurrence(r)));
                 
                 % Set position based on panel.
+                obj.Buttons(r).Position(3) = (obj.Width_ - 75) / numel(obj.Model.AllowedRecurrence);
                 obj.Buttons(r).Position(1) = r * obj.Width_ / numel(obj.Model.AllowedRecurrence) - ...
                     obj.Buttons(r).Position(3);
             end
@@ -48,6 +49,7 @@ classdef (Sealed) RecurrenceController < element.Component
             
             % Scale button positions.
             for r = 1:numel(obj.Model.AllowedRecurrence)
+                obj.Buttons(r).Position(3) = (obj.Width_ - 75) / numel(obj.Model.AllowedRecurrence);
                 obj.Buttons(r).Position(1) = r * obj.Width_ / numel(obj.Model.AllowedRecurrence) - ...
                     obj.Buttons(r).Position(3);
             end

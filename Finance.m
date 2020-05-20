@@ -87,7 +87,7 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
         % Values of allowed currencies.
         AllowedCurrencies = ["GBP", "EUR", "USD"]
         % Values of allowed recurrence.
-        AllowedRecurrence = ["Yearly", "Monthly", "Weekly", "Daily", "Hourly"]
+        AllowedRecurrence = ["Yearly", "Quarterly", "Monthly", "Weekly", "Daily", "Hourly"]
         % Inflection points in gross income for tax and National Insurance.
         InflectionValues = [0, 12500, 50000, 100000, 125000, 150000, 200000]
         % Name of MAT file where current session is saved.
@@ -691,6 +691,8 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             switch recurrence
                 case "Yearly"
                     % Do nothing.
+                case "Quarterly"
+                    value = operator(value, 4);
                 case "Monthly"
                     value = operator(value, 12);
                 case "Weekly"
