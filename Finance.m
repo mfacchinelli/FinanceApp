@@ -193,14 +193,13 @@ classdef (Sealed) Finance < matlab.mixin.SetGetExactNames
             value = getEmptyDeductionTable();
             
             % Add tax and National Insurance values.
-            value(end+1, :) = {"Tax", obj.Tax, obj.Recurrence, "GBP"};
-            
+            value(end+1, :) = {"Tax", obj.Tax, "GBP", obj.Recurrence};
             value(end+1, :) = {"National Insurance", obj.NationalInsurance, ...
-                obj.Recurrence, "GBP"};
+                "GBP", obj.Recurrence};
             
             % Add pension.
             if obj.DeductPension
-                value(end+1, :) = {"Pension", obj.Pension, obj.Recurrence, "GBP"};
+                value(end+1, :) = {"Pension", obj.Pension, "GBP", obj.Recurrence};
             end
         end % get.PreTaxCompulsory
         
