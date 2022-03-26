@@ -82,7 +82,7 @@ classdef (Sealed) AddDeductionHandler < element.InputHandler
         end % get.AllowedCurrencies
         
         function set.DefaultCurrency(obj, value)
-            obj.CurrencyDropDown.Value = value;
+            obj.CurrencyDropDown.Value = string(value);
         end % get.DefaultCurrency
         
         function value = get.DefaultCurrency(obj)
@@ -90,7 +90,7 @@ classdef (Sealed) AddDeductionHandler < element.InputHandler
         end % get.DefaultCurrency
         
         function set.AllowedRecurrence(obj, value)
-            obj.RecurrenceDropDown.Items = value;
+            obj.RecurrenceDropDown.Items = string(value);
         end % get.AllowedRecurrence
         
         function value = get.AllowedRecurrence(obj)
@@ -98,7 +98,7 @@ classdef (Sealed) AddDeductionHandler < element.InputHandler
         end % get.AllowedRecurrence
         
         function set.DefaultRecurrence(obj, value)
-            obj.RecurrenceDropDown.Value = value;
+            obj.RecurrenceDropDown.Value = string(value);
         end % get.DefaultRecurrence
         
         function value = get.DefaultRecurrence(obj)

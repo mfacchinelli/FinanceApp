@@ -115,6 +115,7 @@ classdef (Sealed) DeductionsController < element.Component & element.DialogHandl
                     if strcmp(v.TrackedProperty, obj.TrackedProperty_)
                         % Retrieve selected rows.
                         selectedRow = v.SelectedCells(:, 1);
+                        break;
                     end
                 end
             end
